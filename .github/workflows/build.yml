@@ -19,10 +19,12 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Concedi i permessi di esecuzione a gradlew
-      run: chmod +x ./gradlew
+    - name: Genera e ripara i file Gradle
+      run: |
+        npm install -g gradle
+        gradle wrapper --gradle-version 8.0
+        chmod +x ./gradlew
 
     - name: Compila APK di Debug
       run: ./gradlew assembleDebug
