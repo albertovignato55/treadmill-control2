@@ -542,6 +542,8 @@ fun RunTab(vm: TapisViewModel) {
                             rate = rate,
                             playing = playing,
                             modifier = Modifier.fillMaxWidth(),
+                            startSec = vm.videoPosSec,
+                            onDuration = { vm.videoDurSec = it },
                             onPosition = { vm.onVideoPosition(it) },
                         )
                     VideoType.YOUTUBE -> {
@@ -555,6 +557,8 @@ fun RunTab(vm: TapisViewModel) {
                                 playing = playing,
                                 modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                                 onError = { ytError = it },
+                                startSec = vm.videoPosSec,
+                                onDuration = { vm.videoDurSec = it },
                                 onPosition = { vm.onVideoPosition(it) },
                             )
                         }

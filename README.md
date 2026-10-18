@@ -1,4 +1,4 @@
-# Tapis Control (v0.5)
+# Tapis Control (v0.6)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -87,3 +87,11 @@ La compilazione parte da sola nella scheda Actions.
 - **Limite massimo di pendenza** (scheda Manuale, predefinito 8 %): vale per intervalli, percorso video e comandi
   manuali. Insieme al limite di velocita' viene applicato direttamente a ogni comando Bluetooth.
 - Si installa sopra la v0.4 (stessa firma).
+
+## Novita' v0.6 - Il video non si perde piu' cambiando scheda
+- Prima, uscendo dalla scheda *In corso* il lettore video veniva chiuso e al ritorno ripartiva da 0:00.
+- Ora l'app ricorda la posizione: mentre sei su un'altra scheda il video "scorre" in modo virtuale alla velocita'
+  reale del tapis roulant (e il profilo di pendenza/velocita' del percorso continua a seguirlo); al ritorno il
+  video riparte dal punto giusto, anche per YouTube. Se il video e' piu' corto del percorso, riparte da capo.
+- La posizione si azzera solo quando avvii un nuovo allenamento.
+- Si installa sopra la v0.5 (stessa firma).

@@ -37,13 +37,17 @@ fun LocalVideo(
     rate: Float,
     playing: Boolean,
     modifier: Modifier = Modifier,
+    startSec: Double = 0.0,
+    onDuration: (Double) -> Unit = {},
     onPosition: (Double) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val posCb by rememberUpdatedState(onPosition)
+    val durCb by rememberUpdatedState(onDuration)
     val exo = remember(uri) {
         ExoPlayer.Builder(ctx).build().apply {
-            setMediaItem(MediaItem.fromUri(uri))
+            // riparte dalla posizione salvata (utile quando si torna alla scheda dopo averla lasciata)
+            setMediaItem(MediaItem.fromUri(uri), (startSec * 1000).toLong().coerceAtLeast(0L))
             repeatMode = Player.REPEAT_MODE_ONE
             prepare()
         }
@@ -69,6 +73,8 @@ fun LocalVideo(
     LaunchedEffect(exo) {
         while (true) {
             posCb(exo.currentPosition / 1000.0)
+            val d = exo.duration
+            if (d > 0) durCb(d / 1000.0)
             delay(500)
         }
     }
@@ -83,7 +89,14 @@ fun LocalVideo(
 private class YtBridge(
     private val onError: (String) -> Unit,
     private val onPos: (Double) -> Unit,
+    private val onDur: (Double) -> Unit,
 ) {
+    @JavascriptInterface
+    fun dur(sec: String) {
+        val v = sec.toDoubleOrNull() ?: return
+        if (v > 0) Handler(Looper.getMainLooper()).post { onDur(v) }
+    }
+
     @JavascriptInterface
     fun error(code: String) {
         Handler(Looper.getMainLooper()).post { onError(code) }
@@ -96,7 +109,7 @@ private class YtBridge(
     }
 }
 
-private fun youtubeHtml(id: String) = """
+private fun youtubeHtml(id: String, start: Int) = """
 <!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>html,body{margin:0;height:100%;background:#000}#player{width:100%;height:100%}</style>
@@ -107,7 +120,7 @@ var player, ready = false, wantRate = 1, wantPlaying = false;
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('player', {
     width: '100%', height: '100%', videoId: '$id',
-    playerVars: { playsinline: 1, rel: 0, controls: 1 },
+    playerVars: { playsinline: 1, rel: 0, controls: 1, start: $start },
     events: {
       onReady: function() { ready = true; player.setPlaybackRate(wantRate); if (wantPlaying) player.playVideo(); },
       onStateChange: function(e) { if (e.data === 1) player.setPlaybackRate(wantRate); },
@@ -116,7 +129,10 @@ function onYouTubeIframeAPIReady() {
   });
 }
 setInterval(function() {
-  if (ready && player && player.getCurrentTime) Android.pos(String(player.getCurrentTime()));
+  if (ready && player && player.getCurrentTime) {
+    Android.pos(String(player.getCurrentTime()));
+    if (player.getDuration) Android.dur(String(player.getDuration()));
+  }
 }, 500);
 function setRate(r) { wantRate = r; if (ready) player.setPlaybackRate(r); }
 function setPlaying(p) { wantPlaying = p; if (ready) { if (p) player.playVideo(); else player.pauseVideo(); } }
@@ -132,10 +148,13 @@ fun YouTubeVideo(
     playing: Boolean,
     modifier: Modifier = Modifier,
     onError: (String) -> Unit,
+    startSec: Double = 0.0,
+    onDuration: (Double) -> Unit = {},
     onPosition: (Double) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val posCb by rememberUpdatedState(onPosition)
+    val durCb by rememberUpdatedState(onDuration)
     var loaded by remember(videoId) { mutableStateOf(false) }
     val wv = remember(videoId) {
         WebView(ctx).apply {
@@ -149,8 +168,8 @@ fun YouTubeVideo(
                     loaded = true
                 }
             }
-            addJavascriptInterface(YtBridge(onError) { v -> posCb(v) }, "Android")
-            loadDataWithBaseURL("https://www.youtube.com", youtubeHtml(videoId), "text/html", "utf-8", null)
+            addJavascriptInterface(YtBridge(onError, { v -> posCb(v) }, { d -> durCb(d) }), "Android")
+            loadDataWithBaseURL("https://www.youtube.com", youtubeHtml(videoId, startSec.toInt().coerceAtLeast(0)), "text/html", "utf-8", null)
         }
     }
     DisposableEffect(wv) { onDispose { wv.destroy() } }

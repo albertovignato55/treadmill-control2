@@ -31,6 +31,27 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         // limiti applicati a ogni comando direttamente nel modulo Bluetooth
         ble.speedLimit = maxSpeed.value
         ble.inclineLimit = maxIncline.value
+
+        // Se si lascia la scheda "In corso" il lettore video viene chiuso: il video "scorre" comunque in modo
+        // virtuale alla velocita' reale del tapis roulant, cosi' il profilo del percorso resta allineato e
+        // al ritorno il video riparte dal punto giusto.
+        viewModelScope.launch {
+            while (true) {
+                delay(500)
+                val moving = (routeRunning.value && !routePaused.value) ||
+                    runner.progress.value.let { it.running && !it.paused }
+                if (!moving) continue
+                if (SystemClock.elapsedRealtime() - lastPlayerReportMs < 1500) continue   // lettore visibile
+                val w = workouts.value.firstOrNull { it.id == activeId.value } ?: continue
+                if (w.video.source.isEmpty()) continue
+                val speed = ble.live.value.speedKmh ?: 0.0
+                if (speed < 0.5) continue
+                val rate = ((speed / w.video.refSpeedKmh) * 20).roundToInt() / 20.0
+                var pos = videoPosSec + 0.5 * rate
+                if (videoDurSec > 1.0 && pos >= videoDurSec) pos %= videoDurSec
+                applyVideoPosition(pos)
+            }
+        }
     }
 
     // Percorso virtuale: velocita' libera, pendenza guidata dal video
@@ -41,6 +62,8 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     val routeMessage = MutableStateFlow("")
     val videoPos = MutableStateFlow(0.0)            // posizione del video (s), per la visualizzazione
     @Volatile var videoPosSec = 0.0
+    @Volatile var videoDurSec = 0.0                 // durata del video (0 = sconosciuta), per il giro virtuale
+    @Volatile private var lastPlayerReportMs = 0L   // ultima volta che il lettore ha riportato la posizione
     private var routeJob: Job? = null
     private var lastProfileIncline: Int? = null
     private var lastInclineSentMs = 0L
@@ -165,8 +188,16 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
             startRoute(id)
         } else {
             activeId.value = id
+            resetVideoPosition()
             runner.start(w.flatSteps(), maxSpeed.value, maxIncline.value)
         }
+    }
+
+    private fun resetVideoPosition() {
+        videoPosSec = 0.0
+        videoPos.value = 0.0
+        videoDurSec = 0.0
+        lastPlayerReportMs = 0L
     }
 
     // ---------------------------------------------------------------- percorso virtuale
@@ -174,6 +205,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         if (routeJob?.isActive == true || runner.progress.value.running) return
         val w = workouts.value.firstOrNull { it.id == id } ?: return
         activeId.value = id
+        resetVideoPosition()
         lastProfileIncline = null
         lastProfileSpeed = null
         speedSlewing = false
@@ -247,6 +279,11 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Chiamata dal lettore video (circa 2 volte al secondo) con la posizione in secondi. */
     fun onVideoPosition(sec: Double) {
+        lastPlayerReportMs = SystemClock.elapsedRealtime()
+        applyVideoPosition(sec)
+    }
+
+    private fun applyVideoPosition(sec: Double) {
         videoPosSec = sec
         videoPos.value = sec
         if (!routeRunning.value || routePaused.value) return
