@@ -1,6 +1,10 @@
 package com.example.tapiscontrol
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,12 +57,29 @@ fun WorkoutList(vm: TapisViewModel, workouts: List<Workout>, onGoRun: () -> Unit
     val connected by vm.ble.connected.collectAsStateWithLifecycle()
     val progress by vm.runner.progress.collectAsStateWithLifecycle()
     var toDelete by remember { mutableStateOf<Workout?>(null) }
+    var showImport by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    val inclineRange by vm.ble.inclineRange.collectAsStateWithLifecycle()
+    val maxSpeed by vm.maxSpeed.collectAsStateWithLifecycle()
 
     LazyColumn(
         Modifier.fillMaxSize().padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { Button(onClick = { vm.newWorkout() }) { Text("+ Nuovo allenamento") } }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { vm.newWorkout() }) { Text("+ Nuovo allenamento") }
+                OutlinedButton(onClick = { showImport = true }) { Text("Importa JSON") }
+            }
+        }
+        item {
+            OutlinedButton(onClick = {
+                val prompt = plannerPrompt(maxSpeed, inclineRange?.endInclusive ?: 8.0)
+                val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("Prompt Tapis Control", prompt))
+                Toast.makeText(ctx, "Prompt copiato: incollalo in una chat con Claude", Toast.LENGTH_LONG).show()
+            }) { Text("Copia prompt per Claude") }
+        }
         items(workouts, key = { it.id }) { w ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
@@ -70,7 +91,7 @@ fun WorkoutList(vm: TapisViewModel, workouts: List<Workout>, onGoRun: () -> Unit
                     }
                     Text(
                         if (w.mode == WorkoutMode.ROUTE) {
-                            "Percorso virtuale · ${w.route.size} punti pendenza$video"
+                            "Percorso virtuale · ${w.route.size} punti profilo$video"
                         } else {
                             "${w.totalSec() / 60} min · ${w.blocks.size} blocchi$video"
                         },
@@ -91,6 +112,8 @@ fun WorkoutList(vm: TapisViewModel, workouts: List<Workout>, onGoRun: () -> Unit
             }
         }
     }
+
+    if (showImport) ImportDialog(vm) { showImport = false }
 
     toDelete?.let { w ->
         AlertDialog(
@@ -364,11 +387,17 @@ private fun parseMinSec(t: String): Int? {
 fun RoutePointRow(p: RoutePoint, onChange: (RoutePoint) -> Unit, onDelete: () -> Unit) {
     var tTxt by remember(p.id) { mutableStateOf(mmss(p.videoSec)) }
     var iTxt by remember(p.id) { mutableStateOf(fmt(p.inclinePct)) }
+    var sTxt by remember(p.id) { mutableStateOf(p.speedKmh?.let { fmt(it) } ?: "") }
 
     fun push() {
         val t = parseMinSec(tTxt)
         val i = iTxt.replace(',', '.').toDoubleOrNull()
-        if (t != null && i != null && i in 0.0..15.0) onChange(p.copy(videoSec = t, inclinePct = i))
+        val sp = sTxt.replace(',', '.').trim()
+        val v = if (sp.isEmpty()) null else sp.toDoubleOrNull()
+        val vOk = sp.isEmpty() || (v != null && v in 1.0..15.0)
+        if (t != null && i != null && i in 0.0..15.0 && vOk) {
+            onChange(p.copy(videoSec = t, inclinePct = i, speedKmh = v))
+        }
     }
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -383,6 +412,12 @@ fun RoutePointRow(p: RoutePoint, onChange: (RoutePoint) -> Unit, onDelete: () ->
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.weight(1f),
         )
+        OutlinedTextField(
+            value = sTxt, onValueChange = { sTxt = it; push() },
+            label = { Text("km/h") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.weight(1f),
+        )
         TextButton(onClick = onDelete) { Text("✕") }
     }
 }
@@ -391,11 +426,12 @@ fun RoutePointRow(p: RoutePoint, onChange: (RoutePoint) -> Unit, onDelete: () ->
 fun RouteEditor(w: Workout, vm: TapisViewModel) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Profilo di pendenza del percorso", style = MaterialTheme.typography.titleSmall)
+            Text("Profilo del percorso (pendenza e velocità)", style = MaterialTheme.typography.titleSmall)
             Text(
-                "La velocità la scegli tu mentre guardi il video (e il video la segue). La pendenza cambia da sola " +
-                    "in base al punto del video: tra due punti viene interpolata. Puoi scrivere i punti qui, " +
-                    "oppure registrarli guardando il video dalla scheda In corso (pulsante \"Registra pendenza qui\").",
+                "Pendenza e velocità cambiano da sole in base al punto del video: tra due punti vengono interpolate " +
+                    "(la velocità al massimo di 0,3 km/h ogni 2 s, e mai oltre il limite impostato). " +
+                    "Lascia vuota la velocità di un punto se vuoi gestirla tu a mano. Puoi scrivere i punti qui, " +
+                    "oppure registrarli guardando il video dalla scheda In corso (pulsante \"Registra punto qui\").",
                 style = MaterialTheme.typography.bodySmall,
             )
             w.route.forEach { p ->
@@ -455,13 +491,13 @@ fun RouteControls(vm: TapisViewModel, w: Workout, connected: Boolean) {
             }
 
             if (w.video.source.isNotEmpty()) {
-                OutlinedButton(onClick = { vm.recordRoutePoint(w.id, vm.videoPosSec, incline) }) {
-                    Text("Registra pendenza qui")
+                OutlinedButton(onClick = { vm.recordRoutePoint(w.id, vm.videoPosSec, incline, speed) }) {
+                    Text("Registra punto qui (velocità + pendenza)")
                 }
             }
             Text(
-                "Punti nel profilo: ${w.route.size}. Se correggi la pendenza a mano, vale fino al prossimo " +
-                    "cambio previsto dal profilo.",
+                "Punti nel profilo: ${w.route.size}. Se correggi velocità o pendenza a mano, vale fino al " +
+                    "prossimo cambio previsto dal profilo.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -573,4 +609,54 @@ fun RunTab(vm: TapisViewModel) {
             }
         }
     }
+}
+
+
+/** Importa un allenamento dal JSON del Treadmill Workout Planner: da file oppure incollando il testo. */
+@Composable
+fun ImportDialog(vm: TapisViewModel, onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    var text by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf("") }
+    var done by remember { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                text = ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+                msg = ""
+            } catch (e: Exception) {
+                msg = "Impossibile leggere il file: ${e.message}"
+            }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Importa allenamento (JSON)") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Scegli file .json") }
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it; msg = "" },
+                    label = { Text("...oppure incolla il JSON") },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 240.dp),
+                )
+                if (msg.isNotEmpty()) Text(msg, style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            if (done) {
+                TextButton(onClick = onDismiss) { Text("Chiudi") }
+            } else {
+                TextButton(
+                    onClick = {
+                        msg = vm.importWorkout(text)
+                        done = msg.startsWith("Importato")
+                    },
+                    enabled = text.isNotBlank(),
+                ) { Text("Importa") }
+            }
+        },
+        dismissButton = { if (!done) TextButton(onClick = onDismiss) { Text("Annulla") } },
+    )
 }

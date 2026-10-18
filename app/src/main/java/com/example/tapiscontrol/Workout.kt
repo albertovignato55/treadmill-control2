@@ -41,6 +41,7 @@ data class RoutePoint(
     val id: Long = newStepId(),
     val videoSec: Int,
     val inclinePct: Double,
+    val speedKmh: Double? = null,   // opzionale: se assente la velocita' resta a controllo manuale
 )
 
 /** Pendenza (%) alla posizione `sec` del video: interpolazione lineare tra i punti, costante prima/dopo. */
@@ -54,6 +55,19 @@ fun List<RoutePoint>.inclineAt(sec: Double): Double? {
     val b = p[i + 1]
     val span = (b.videoSec - a.videoSec).toDouble()
     return a.inclinePct + (b.inclinePct - a.inclinePct) * ((sec - a.videoSec) / span)
+}
+
+/** Velocita' (km/h) alla posizione `sec` del video: interpolazione tra i punti che hanno una velocita'. */
+fun List<RoutePoint>.speedAt(sec: Double): Double? {
+    val p = filter { it.speedKmh != null }.sortedBy { it.videoSec }
+    if (p.isEmpty()) return null
+    if (sec <= p.first().videoSec) return p.first().speedKmh
+    if (sec >= p.last().videoSec) return p.last().speedKmh
+    val i = p.indexOfLast { it.videoSec <= sec }
+    val a = p[i]
+    val b = p[i + 1]
+    val span = (b.videoSec - a.videoSec).toDouble()
+    return a.speedKmh!! + (b.speedKmh!! - a.speedKmh!!) * ((sec - a.videoSec) / span)
 }
 
 /** Video collegato a un allenamento. refSpeedKmh = velocita' a cui e' stato girato il video. */
@@ -112,7 +126,11 @@ class WorkoutStore(ctx: Context) {
         .put("vr", w.video.refSpeedKmh)
         .put("m", w.mode.name)
         .put("rt", JSONArray().also { a ->
-            w.route.forEach { a.put(JSONObject().put("t", it.videoSec).put("i", it.inclinePct)) }
+            w.route.forEach { pt ->
+                val o = JSONObject().put("t", pt.videoSec).put("i", pt.inclinePct)
+                pt.speedKmh?.let { o.put("v", it) }
+                a.put(o)
+            }
         })
 
     private fun workoutFromJson(o: JSONObject): Workout {
@@ -134,7 +152,11 @@ class WorkoutStore(ctx: Context) {
             route = o.optJSONArray("rt")?.let { a ->
                 (0 until a.length()).map {
                     val r = a.getJSONObject(it)
-                    RoutePoint(videoSec = r.getInt("t"), inclinePct = r.getDouble("i"))
+                    RoutePoint(
+                        videoSec = r.getInt("t"),
+                        inclinePct = r.getDouble("i"),
+                        speedKmh = if (r.has("v")) r.getDouble("v") else null,
+                    )
                 }
             } ?: emptyList(),
         )
@@ -216,6 +238,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
     @Volatile private var paused = false
 
     private fun round1(x: Double) = (x * 10).roundToInt() / 10.0
+    private fun roundHalf(x: Double) = (x * 2).roundToInt() / 2.0
 
     fun start(steps: List<Step>, maxSpeed: Double) {
         if (steps.isEmpty() || job?.isActive == true) return
@@ -251,13 +274,13 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
         delay(START_DELAY_MS)
 
         var prevSpeed = round1(min(steps[0].speedKmh, maxSpeed))
-        var prevInc = steps[0].inclinePct.roundToInt().toDouble()
+        var prevInc = roundHalf(steps[0].inclinePct)
         var sentSpeed: Double? = null
         var sentInc: Double? = null
 
         for ((idx, step) in steps.withIndex()) {
             val tgtSpeed = round1(min(step.speedKmh, maxSpeed))
-            val tgtInc = step.inclinePct.roundToInt().toDouble()
+            val tgtInc = roundHalf(step.inclinePct)
 
             for (t in 0 until step.durationSec) {
                 if (!ble.connected.value) {
@@ -278,7 +301,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
                 val f = if (idx == 0 || rampSec <= 0) 1.0
                 else ((t + 1).toDouble() / rampSec).coerceAtMost(1.0)
                 val sp = round1(prevSpeed + (tgtSpeed - prevSpeed) * f)
-                val inc = (prevInc + (tgtInc - prevInc) * f).roundToInt().toDouble()
+                val inc = roundHalf(prevInc + (tgtInc - prevInc) * f)
 
                 if (sp != sentSpeed) { ble.setSpeed(sp); sentSpeed = sp }
                 if (inc != sentInc) { ble.setIncline(inc); sentInc = inc }

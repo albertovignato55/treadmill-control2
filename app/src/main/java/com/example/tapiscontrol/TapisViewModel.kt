@@ -37,6 +37,9 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     private var routeJob: Job? = null
     private var lastProfileIncline: Int? = null
     private var lastInclineSentMs = 0L
+    private var lastProfileSpeed: Double? = null   // ultima velocita' obiettivo dal profilo
+    private var speedSlewing = false               // true finche' la velocita' non ha raggiunto l'obiettivo
+    private var lastSpeedSentMs = 0L
 
     // ---------------------------------------------------------------- allenamenti
     private fun saveWorkouts() = store.saveWorkouts(workouts.value)
@@ -60,6 +63,15 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         workouts.update { it + w }
         saveWorkouts()
         editingId.value = w.id
+    }
+
+    /** Importa un allenamento dal JSON del Treadmill Workout Planner. Restituisce il messaggio da mostrare. */
+    fun importWorkout(text: String): String {
+        val r = parsePlannerWorkout(text)
+        val w = r.workout ?: return r.message
+        workouts.update { it + w }
+        saveWorkouts()
+        return r.message
     }
 
     fun duplicateWorkout(id: Long) {
@@ -100,6 +112,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
             route = w.route + RoutePoint(
                 videoSec = (last?.videoSec ?: -60) + 60,
                 inclinePct = last?.inclinePct ?: 0.0,
+                speedKmh = last?.speedKmh,
             ),
         )
     }
@@ -111,11 +124,11 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     fun removeRoutePoint(id: Long) = editWorkout { w -> w.copy(route = w.route.filterNot { it.id == id }) }
 
     /** Salva (o sostituisce, entro 2 s) un punto del profilo alla posizione corrente del video. */
-    fun recordRoutePoint(id: Long, sec: Double, incline: Double) =
+    fun recordRoutePoint(id: Long, sec: Double, incline: Double, speed: Double) =
         updateWorkout(id) { w ->
             val s = sec.roundToInt().coerceAtLeast(0)
             val others = w.route.filter { abs(it.videoSec - s) > 2 }
-            w.copy(route = (others + RoutePoint(videoSec = s, inclinePct = incline)).sortedBy { it.videoSec })
+            w.copy(route = (others + RoutePoint(videoSec = s, inclinePct = incline, speedKmh = speed)).sortedBy { it.videoSec })
         }
 
     fun setVideoRef(id: Long, ref: Double) =
@@ -155,7 +168,15 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         val w = workouts.value.firstOrNull { it.id == id } ?: return
         activeId.value = id
         lastProfileIncline = null
+        lastProfileSpeed = null
+        speedSlewing = false
+        lastSpeedSentMs = SystemClock.elapsedRealtime()
         routeSpeed.value = routeSpeed.value.coerceIn(1.0, maxSpeed.value)
+        w.route.speedAt(0.0)?.let { v0 ->
+            val c = ((v0 * 10).roundToInt() / 10.0).coerceIn(1.0, maxSpeed.value)
+            routeSpeed.value = c
+            lastProfileSpeed = c
+        }
         routeMessage.value = "Avvio..."
         routePaused.value = false
         routeRunning.value = true
@@ -224,9 +245,28 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         if (!routeRunning.value || routePaused.value) return
         val w = workouts.value.firstOrNull { it.id == activeId.value } ?: return
         if (w.mode != WorkoutMode.ROUTE) return
+        val now = SystemClock.elapsedRealtime()
+
+        // Velocita' dal profilo (se i punti la prevedono): al massimo 0,3 km/h ogni 2 s, mai oltre il limite
+        w.route.speedAt(sec)?.let { raw ->
+            val tgt = ((raw * 10).roundToInt() / 10.0).coerceIn(1.0, maxSpeed.value)
+            if ((tgt != lastProfileSpeed || speedSlewing) && now - lastSpeedSentMs >= 2000) {
+                val cur = routeSpeed.value
+                val next = (((cur + (tgt - cur).coerceIn(-0.3, 0.3)) * 10).roundToInt() / 10.0)
+                    .coerceIn(1.0, maxSpeed.value)
+                lastProfileSpeed = tgt
+                speedSlewing = next != tgt
+                lastSpeedSentMs = now
+                if (next != cur) {
+                    routeSpeed.value = next
+                    ble.setSpeed(next)
+                }
+            }
+        }
+
+        // Pendenza dal profilo
         val target = w.route.inclineAt(sec)?.roundToInt()?.coerceIn(0, 15) ?: return
         if (target == lastProfileIncline) return
-        val now = SystemClock.elapsedRealtime()
         if (now - lastInclineSentMs < 2000) return
         lastProfileIncline = target
         lastInclineSentMs = now

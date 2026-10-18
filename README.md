@@ -1,4 +1,4 @@
-# Tapis Control (v0.3)
+# Tapis Control (v0.4)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -52,3 +52,27 @@ La compilazione parte da sola nella scheda Actions.
 - Funziona con video su file e con YouTube (la posizione viene letta dal lettore).
 - Se il video e' piu' corto del percorso, riparte da capo (e anche il profilo riparte).
 - Gli allenamenti salvati con la v0.2 restano validi. Si installa sopra la v0.2 (stessa firma).
+
+## Novita' v0.4 - Importa allenamenti JSON
+- Scheda **Allenamenti** > **Importa JSON**: scegli un file `.json` oppure incolla il testo generato dal
+  Treadmill Workout Planner (chiavi `units`, `speedUnit`, `name`, `segments`).
+- Ogni segmento diventa un blocco; le rampe (velocita'/pendenza che cambiano) sono spezzate in step lunghi quanto
+  `speedInterval` / `inclineInterval` (60 s se mancano), cosi' il tapis roulant le segue gradualmente.
+- Supporta velocita' (km/h, mph) e passo (M:SS), metrico e imperiale: tutto convertito in km/h.
+- Le zone cardio (`targetHRZone`, `recoveryHRZone`...) vengono ignorate: l'app non le gestisce.
+- La pendenza durante gli allenamenti a intervalli ora procede a passi di **0,5 %** (prima interi).
+- Il limite massimo di velocita' (scheda Manuale) vale anche per gli allenamenti importati: impostalo a 6,5 km/h
+  per il tuo tapis roulant. Si installa sopra la v0.3 (stessa firma).
+
+### Percorso virtuale con velocita' guidata dal video (v0.4)
+- Ogni punto del profilo ha ora anche una **velocita' (km/h)** facoltativa: velocita' e pendenza seguono il
+  video e vengono interpolate tra un punto e il successivo.
+- La velocita' cambia al massimo di 0,3 km/h ogni 2 s e non supera mai il limite massimo impostato.
+- Punto senza velocita' = velocita' a controllo manuale come prima. Gli allenamenti v0.3 restano validi.
+- **Registra punto qui** salva insieme velocita' e pendenza correnti alla posizione del video.
+- Una correzione manuale vale fino al prossimo cambio previsto dal profilo.
+
+### Pianificare con Claude (v0.4)
+- Scheda **Allenamenti** > **Copia prompt per Claude**: copia negli appunti la guida per generare l'allenamento
+  (con il limite di velocita' impostato e la pendenza massima letta dal tapis roulant, o 8 % se non connesso).
+- Incollala in una chat con Claude, rispondi alle domande, copia il JSON finale e usa **Importa JSON**.
