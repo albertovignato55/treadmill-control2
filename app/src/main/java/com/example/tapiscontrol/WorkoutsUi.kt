@@ -292,7 +292,7 @@ fun LibraryDialog(
 }
 
 @Composable
-fun VideoSection(w: Workout, vm: TapisViewModel) {
+fun VideoCard(video: VideoRef, key: Any, onChange: (VideoRef) -> Unit) {
     val ctx = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
@@ -300,11 +300,11 @@ fun VideoSection(w: Workout, vm: TapisViewModel) {
                 ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (_: Exception) {
             }
-            vm.setVideo(w.video.copy(type = VideoType.LOCAL, source = uri.toString()))
+            onChange(video.copy(type = VideoType.LOCAL, source = uri.toString()))
         }
     }
-    var linkTxt by remember(w.id, w.video.type) { mutableStateOf(w.video.source) }
-    var refTxt by remember(w.id) { mutableStateOf(fmt(w.video.refSpeedKmh)) }
+    var linkTxt by remember(key, video.type) { mutableStateOf(video.source) }
+    var refTxt by remember(key) { mutableStateOf(fmt(video.refSpeedKmh)) }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -315,41 +315,41 @@ fun VideoSection(w: Workout, vm: TapisViewModel) {
                     VideoType.LOCAL to "File",
                     VideoType.YOUTUBE to "YouTube",
                 ).forEach { (t, label) ->
-                    if (w.video.type == t) {
+                    if (video.type == t) {
                         Button(onClick = {}) { Text(label) }
                     } else {
-                        OutlinedButton(onClick = { vm.setVideo(w.video.copy(type = t, source = "")) }) {
+                        OutlinedButton(onClick = { onChange(video.copy(type = t, source = "")) }) {
                             Text(label)
                         }
                     }
                 }
             }
-            when (w.video.type) {
+            when (video.type) {
                 VideoType.NONE -> {}
                 VideoType.LOCAL -> {
                     OutlinedButton(onClick = { picker.launch(arrayOf("video/*")) }) { Text("Scegli file video") }
-                    Text(if (w.video.source.isEmpty()) "Nessun file scelto" else "File scelto ✓")
+                    Text(if (video.source.isEmpty()) "Nessun file scelto" else "File scelto ✓")
                 }
                 VideoType.YOUTUBE -> {
                     OutlinedTextField(
                         value = linkTxt,
-                        onValueChange = { text -> linkTxt = text; vm.setVideo(w.video.copy(source = text.trim())) },
+                        onValueChange = { text -> linkTxt = text; onChange(video.copy(source = text.trim())) },
                         label = { Text("Link YouTube") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    if (w.video.source.isNotEmpty() && youtubeId(w.video.source) == null) {
+                    if (video.source.isNotEmpty() && youtubeId(video.source) == null) {
                         Text("Link non riconosciuto")
                     }
                 }
             }
-            if (w.video.type != VideoType.NONE) {
+            if (video.type != VideoType.NONE) {
                 OutlinedTextField(
                     value = refTxt,
                     onValueChange = { text ->
                         refTxt = text
                         text.replace(',', '.').toDoubleOrNull()?.let { v ->
-                            if (v in 1.0..30.0) vm.setVideo(w.video.copy(refSpeedKmh = v))
+                            if (v in 1.0..30.0) onChange(video.copy(refSpeedKmh = v))
                         }
                     },
                     label = { Text("Velocità di ripresa del video (km/h)") },
@@ -365,6 +365,9 @@ fun VideoSection(w: Workout, vm: TapisViewModel) {
         }
     }
 }
+
+@Composable
+fun VideoSection(w: Workout, vm: TapisViewModel) = VideoCard(w.video, w.id) { vm.setVideo(it) }
 
 // ------------------------------------------------------------------ Profilo pendenza (modalita' percorso)
 /** "1:30" oppure "1,5" (minuti) -> secondi. */
@@ -496,8 +499,8 @@ fun RouteControls(vm: TapisViewModel, w: Workout, connected: Boolean) {
                 }
             }
             Text(
-                "Punti nel profilo: ${w.route.size}. Se correggi velocità o pendenza a mano, vale fino al " +
-                    "prossimo cambio previsto dal profilo.",
+                "Punti nel profilo: ${w.route.size}. Ogni correzione di velocità o pendenza fatta a mano " +
+                    "mentre il percorso è in corso viene registrata da sola nel profilo, alla posizione corrente del video.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -513,6 +516,9 @@ fun RunTab(vm: TapisViewModel) {
     val connected by vm.ble.connected.collectAsStateWithLifecycle()
     val routeRunning by vm.routeRunning.collectAsStateWithLifecycle()
     val routePaused by vm.routePaused.collectAsStateWithLifecycle()
+    val speedOff by vm.runner.speedOffsetFlow.collectAsStateWithLifecycle()
+    val incOff by vm.runner.inclineOffsetFlow.collectAsStateWithLifecycle()
+    val ctx = LocalContext.current
     val w = workouts.firstOrNull { it.id == activeId }
     var ytError by remember(activeId) { mutableStateOf<String?>(null) }
 
@@ -591,6 +597,39 @@ fun RunTab(vm: TapisViewModel) {
                                 }
                                 OutlinedButton(onClick = { vm.runner.stop() }) { Text("Stop") }
                             }
+                        }
+                        if (p.running) {
+                            fun signed(d: Double): String {
+                                val r = Math.round(d * 10) / 10.0
+                                return (if (r > 0) "+" else "") + fmt(r)
+                            }
+                            Text(
+                                "Correzione manuale: ${signed(speedOff)} km/h · ${signed(incOff)} %",
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedButton(onClick = { vm.adjustIntervalSpeed(-0.5) }) { Text("−0,5") }
+                                OutlinedButton(onClick = { vm.adjustIntervalSpeed(-0.1) }) { Text("−0,1") }
+                                OutlinedButton(onClick = { vm.adjustIntervalSpeed(0.1) }) { Text("+0,1") }
+                                OutlinedButton(onClick = { vm.adjustIntervalSpeed(0.5) }) { Text("+0,5") }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedButton(onClick = { vm.adjustIntervalIncline(-1.0) }) { Text("−1 %") }
+                                OutlinedButton(onClick = { vm.adjustIntervalIncline(-0.5) }) { Text("−0,5 %") }
+                                OutlinedButton(onClick = { vm.adjustIntervalIncline(0.5) }) { Text("+0,5 %") }
+                                OutlinedButton(onClick = { vm.adjustIntervalIncline(1.0) }) { Text("+1 %") }
+                            }
+                            if (speedOff != 0.0 || incOff != 0.0) {
+                                OutlinedButton(onClick = {
+                                    vm.saveIntervalOffsets(w.id)
+                                    Toast.makeText(ctx, "Correzione salvata nell'allenamento", Toast.LENGTH_SHORT).show()
+                                }) { Text("Salva la correzione nell'allenamento") }
+                            }
+                            Text(
+                                "La correzione si somma a tutti gli step rimanenti (nei limiti di velocità e " +
+                                    "pendenza). Con \"Salva\" resta anche per i prossimi allenamenti.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }

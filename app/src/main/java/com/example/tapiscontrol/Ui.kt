@@ -1,6 +1,8 @@
 package com.example.tapiscontrol
 
+import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -124,12 +126,51 @@ fun ManualTab(vm: TapisViewModel) {
     val connected by vm.ble.connected.collectAsStateWithLifecycle()
     val maxSpeed by vm.maxSpeed.collectAsStateWithLifecycle()
     val maxIncline by vm.maxIncline.collectAsStateWithLifecycle()
+    val mv by vm.manualVideo.collectAsStateWithLifecycle()
+    var ytError by remember { mutableStateOf<String?>(null) }
+
+    // il video scorre alla velocita' reale del tapis roulant, rispetto a quella di ripresa
+    val liveSpeed = live.speedKmh ?: 0.0
+    val vPlaying = liveSpeed >= 0.5
+    val vRate = if (vPlaying) ((liveSpeed / mv.refSpeedKmh) * 20).roundToInt() / 20f else 1f
 
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (!connected) Text("Non connesso: vai alla scheda Connessione.")
+
+        if (mv.source.isNotEmpty()) {
+            when (mv.type) {
+                VideoType.LOCAL -> LocalVideo(
+                    uri = Uri.parse(mv.source),
+                    rate = vRate,
+                    playing = vPlaying,
+                    modifier = Modifier.fillMaxWidth(),
+                    startSec = vm.manualVideoPos,
+                    onPosition = { vm.manualVideoPos = it },
+                )
+                VideoType.YOUTUBE -> {
+                    val id = youtubeId(mv.source)
+                    if (id == null) {
+                        Text("Link YouTube non valido")
+                    } else {
+                        YouTubeVideo(
+                            videoId = id,
+                            rate = youtubeRate(vRate),
+                            playing = vPlaying,
+                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                            onError = { ytError = it },
+                            startSec = vm.manualVideoPos,
+                            onPosition = { vm.manualVideoPos = it },
+                        )
+                    }
+                    ytError?.let { Text("YouTube ha rifiutato il video (codice $it): potrebbe non essere incorporabile.") }
+                }
+                VideoType.NONE -> {}
+            }
+        }
+
         LiveCard(live)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -149,6 +190,18 @@ fun ManualTab(vm: TapisViewModel) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { vm.adjustIncline(-1.0) }, enabled = connected) { Text("−1") }
             OutlinedButton(onClick = { vm.adjustIncline(1.0) }, enabled = connected) { Text("+1") }
+        }
+
+        VideoCard(mv, "manual") { vm.setManualVideo(it) }
+        if (mv.source.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { vm.setManualVideo(mv.copy(refSpeedKmh = (mv.refSpeedKmh - 0.5).coerceIn(1.0, 30.0))) }) {
+                    Text("Ripreso a ${fmt(mv.refSpeedKmh)}: −0,5")
+                }
+                OutlinedButton(onClick = { vm.setManualVideo(mv.copy(refSpeedKmh = (mv.refSpeedKmh + 0.5).coerceIn(1.0, 30.0))) }) {
+                    Text("+0,5")
+                }
+            }
         }
 
         Text("Limite massimo di velocità: ${fmt(maxSpeed)} km/h", style = MaterialTheme.typography.titleSmall)

@@ -24,6 +24,16 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     val activeId = MutableStateFlow<Long?>(null)    // allenamento in corso / selezionato
     val maxSpeed = MutableStateFlow(store.loadMaxSpeed())
     val maxIncline = MutableStateFlow(store.loadMaxIncline())
+
+    // video della scheda Manuale (indipendente dagli allenamenti)
+    val manualVideo = MutableStateFlow(store.loadManualVideo())
+    @Volatile var manualVideoPos = 0.0
+
+    fun setManualVideo(v: VideoRef) {
+        if (v.source != manualVideo.value.source) manualVideoPos = 0.0
+        manualVideo.value = v
+        store.saveManualVideo(v)
+    }
     val manualSpeed = MutableStateFlow(3.0)
     val manualIncline = MutableStateFlow(0.0)
 
@@ -189,8 +199,41 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             activeId.value = id
             resetVideoPosition()
+            savedSpeedOffset = 0.0
+            savedInclineOffset = 0.0
             runner.start(w.flatSteps(), maxSpeed.value, maxIncline.value)
         }
+    }
+
+    // correzioni manuali durante un allenamento a intervalli
+    private var savedSpeedOffset = 0.0
+    private var savedInclineOffset = 0.0
+
+    fun adjustIntervalSpeed(delta: Double) = runner.adjustSpeed(delta)
+    fun adjustIntervalIncline(delta: Double) = runner.adjustIncline(delta)
+
+    /**
+     * Scrive nell'allenamento le correzioni fatte a mano: somma la differenza a ogni step (nei limiti impostati).
+     * La sessione in corso continua con gli stessi valori; una seconda pressione salva solo le nuove correzioni.
+     */
+    fun saveIntervalOffsets(id: Long) {
+        val ds = runner.speedOffset - savedSpeedOffset
+        val di = runner.inclineOffset - savedInclineOffset
+        if (ds == 0.0 && di == 0.0) return
+        val maxS = maxSpeed.value
+        val maxI = maxIncline.value
+        updateWorkout(id) { w ->
+            w.copy(blocks = w.blocks.map { b ->
+                b.copy(steps = b.steps.map { st ->
+                    st.copy(
+                        speedKmh = ((st.speedKmh + ds).coerceIn(1.0, maxS) * 10).roundToInt() / 10.0,
+                        inclinePct = ((st.inclinePct + di).coerceIn(0.0, maxI) * 2).roundToInt() / 2.0,
+                    )
+                })
+            })
+        }
+        savedSpeedOffset = runner.speedOffset
+        savedInclineOffset = runner.inclineOffset
     }
 
     private fun resetVideoPosition() {
@@ -268,6 +311,19 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         val v = ((routeSpeed.value + delta) * 10).roundToInt() / 10.0
         routeSpeed.value = v.coerceIn(1.0, maxSpeed.value)
         if (routeRunning.value && !routePaused.value) ble.setSpeed(routeSpeed.value)
+        autoRecordRoutePoint()
+    }
+
+    /**
+     * Durante un percorso col video, ogni correzione manuale viene registrata come punto del profilo alla
+     * posizione corrente: cosi' non viene piu' sovrascritta dal profilo e resta per i giri successivi.
+     */
+    private fun autoRecordRoutePoint() {
+        if (!routeRunning.value || routePaused.value) return
+        val id = activeId.value ?: return
+        val w = workouts.value.firstOrNull { it.id == id } ?: return
+        if (w.mode != WorkoutMode.ROUTE || w.video.source.isEmpty()) return
+        recordRoutePoint(id, videoPosSec, routeIncline.value, routeSpeed.value)
     }
 
     /** Correzione manuale: vale fino al prossimo cambio di pendenza previsto dal profilo. */
@@ -275,6 +331,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         routeIncline.value = (routeIncline.value + delta).coerceIn(0.0, maxIncline.value)
         lastInclineSentMs = SystemClock.elapsedRealtime()
         if (routeRunning.value && !routePaused.value) ble.setIncline(routeIncline.value)
+        autoRecordRoutePoint()
     }
 
     /** Chiamata dal lettore video (circa 2 volte al secondo) con la posizione in secondi. */

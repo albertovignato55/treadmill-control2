@@ -1,4 +1,4 @@
-# Tapis Control (v0.6)
+# Tapis Control (v0.8)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -95,3 +95,20 @@ La compilazione parte da sola nella scheda Actions.
   video riparte dal punto giusto, anche per YouTube. Se il video e' piu' corto del percorso, riparte da capo.
 - La posizione si azzera solo quando avvii un nuovo allenamento.
 - Si installa sopra la v0.5 (stessa firma).
+
+## Novita' v0.7
+- **Percorso video: le correzioni manuali restano.** Ogni volta che durante il percorso tocchi i tasti di velocita'
+  o pendenza, il valore viene registrato da solo come punto del profilo alla posizione corrente del video. Prima
+  il profilo, che continua a interpolare tra i punti, riportava la velocita' ai valori precedenti dopo pochi secondi.
+- **Video nella scheda Manuale**: scegli un file o un link YouTube; il video scorre alla velocita' reale del tapis
+  roulant e la calibrazione ("ripreso a ... km/h") si regola con -0,5 / +0,5. Viene ricordato anche a app chiusa.
+- Si installa sopra la v0.6 (stessa firma).
+
+## Novita' v0.8 - Correzioni manuali negli allenamenti a intervalli
+- Nella scheda *In corso*, durante un allenamento a **Intervalli** (come i JSON importati) ci sono ora i tasti di
+  correzione: velocita' -0,5 / -0,1 / +0,1 / +0,5 km/h e pendenza -1 / -0,5 / +0,5 / +1 %.
+- La correzione si somma a tutti gli step rimanenti, quindi non "torna" al valore programmato al cambio di step.
+  Resta nei limiti massimi di velocita' e pendenza.
+- **Salva la correzione nell'allenamento** la scrive in tutti gli step: i prossimi allenamenti partiranno da li'.
+- Include le novita' della v0.7 (punti del percorso registrati da soli, video nella scheda Manuale).
+- Si installa sopra la v0.6 o v0.7 (stessa firma).
