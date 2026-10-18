@@ -16,9 +16,12 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** Gestione BLE del tapis roulant tramite FTMS. Permessi gia' verificati dall'Activity. */
@@ -277,23 +280,112 @@ class TreadmillBle(private val context: Context) {
     }
 
     fun requestControl() = sendCommand(Ftms.OP_REQUEST_CONTROL)
-    fun start() = sendCommand(Ftms.OP_START)
-    fun stop() = sendCommand(Ftms.OP_STOP, 0x01)
-    fun pause() = sendCommand(Ftms.OP_STOP, 0x02)
+    fun start() { clearWanted(); sendCommand(Ftms.OP_START) }
+    fun stop() { clearWanted(); sendCommand(Ftms.OP_STOP, 0x01) }
+    fun pause() { clearWanted(); sendCommand(Ftms.OP_STOP, 0x02) }
+
+    /** Dopo Start aspetta che il nastro si muova davvero (il tapis fa un conto alla rovescia), max 15 s. */
+    suspend fun awaitBeltMoving(minMs: Long = 3000, maxMs: Long = 15000) {
+        delay(minMs)
+        var waited = minMs
+        while (waited < maxMs && connected.value && (live.value.speedKmh ?: 0.0) < 0.3) {
+            delay(500); waited += 500
+        }
+        delay(500)
+    }
+
+    // ---------------------------------------------------------------- limiti di sicurezza
+    /** Limiti applicati a OGNI comando, qualunque sia la schermata che lo invia. */
+    @Volatile var speedLimit = 15.0
+    @Volatile var inclineLimit = 15.0
+
+    // ---------------------------------------------------------------- verifica e ripetizione comandi
+    // Il tapis roulant a volte ignora un comando (es. subito dopo Start): se dopo qualche secondo il valore
+    // letto non corrisponde a quello richiesto, il comando viene ripetuto (max 5 volte).
+    private var wantSpeed: Double? = null
+    private var wantIncline: Double? = null
+    private var speedSentAt = 0L
+    private var inclineSentAt = 0L
+    private var speedTries = 0
+    private var inclineTries = 0
+    private var enforcerPosted = false
+
+    private fun clearWanted() { wantSpeed = null; wantIncline = null }
+
+    private fun ensureEnforcer() {
+        if (enforcerPosted) return
+        enforcerPosted = true
+        handler.postDelayed(enforceTick, 2000)
+    }
+
+    private val enforceTick = object : Runnable {
+        override fun run() {
+            enforcerPosted = false
+            if (!connected.value) return
+            val now = SystemClock.elapsedRealtime()
+            val l = live.value
+            val ws = wantSpeed
+            val cs = l.speedKmh
+            // si ripete solo se il nastro e' in movimento: mai a nastro fermo
+            if (ws != null && cs != null && cs > 0.3) {
+                if (abs(cs - ws) <= 0.25) {
+                    speedTries = 0
+                } else if (now - speedSentAt >= 6000) {
+                    if (speedTries < 5) {
+                        speedTries++; speedSentAt = now; writeSpeed(ws, true)
+                    } else if (speedTries == 5) {
+                        speedTries++
+                        addLog("Il tapis roulant non applica la velocita' richiesta ($ws km/h): usa la console.")
+                    }
+                }
+            }
+            val wi = wantIncline
+            val ci = l.inclinePct
+            if (wi != null && ci != null && cs != null && cs > 0.3) {
+                if (abs(ci - wi) <= 0.4) {
+                    inclineTries = 0
+                } else if (now - inclineSentAt >= 6000) {
+                    if (inclineTries < 5) {
+                        inclineTries++; inclineSentAt = now; writeIncline(wi, true)
+                    } else if (inclineTries == 5) {
+                        inclineTries++
+                        addLog("Pendenza letta $ci % diversa da quella richiesta ($wi %) dopo 5 tentativi.")
+                    }
+                }
+            }
+            if (wantSpeed != null || wantIncline != null) ensureEnforcer()
+        }
+    }
 
     fun setSpeed(kmh: Double) {
-        val r = speedRange.value
-        val s = if (r != null) kmh.coerceIn(r) else kmh
+        var s = kmh.coerceAtMost(speedLimit)
+        speedRange.value?.let { s = s.coerceIn(it) }
+        wantSpeed = s
+        speedSentAt = SystemClock.elapsedRealtime()
+        speedTries = 0
+        writeSpeed(s, false)
+        ensureEnforcer()
+    }
+
+    private fun writeSpeed(s: Double, repeat: Boolean) {
         val v = (s * 100).roundToInt().coerceIn(0, 0xFFFF)
         sendCommand(Ftms.OP_SET_SPEED, v and 0xFF, (v shr 8) and 0xFF)
-        addLog("-> velocita' $s km/h")
+        addLog(if (repeat) "-> velocita' $s km/h (ripeto)" else "-> velocita' $s km/h")
     }
 
     fun setIncline(pct: Double) {
-        val r = inclineRange.value
-        val p = if (r != null) pct.coerceIn(r) else pct
+        var p = pct.coerceIn(0.0, inclineLimit)
+        inclineRange.value?.let { p = p.coerceIn(it) }
+        wantIncline = p
+        inclineSentAt = SystemClock.elapsedRealtime()
+        inclineTries = 0
+        writeIncline(p, false)
+        ensureEnforcer()
+    }
+
+    private fun writeIncline(p: Double, repeat: Boolean) {
         val v = (p * 10).roundToInt()
         sendCommand(Ftms.OP_SET_INCLINE, v and 0xFF, (v shr 8) and 0xFF)
-        addLog("-> inclinazione $p %")
+        addLog(if (repeat) "-> inclinazione $p % (ripeto)" else "-> inclinazione $p %")
     }
 }

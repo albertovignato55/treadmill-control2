@@ -23,8 +23,15 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     val editingId = MutableStateFlow<Long?>(null)   // allenamento aperto nell'editor
     val activeId = MutableStateFlow<Long?>(null)    // allenamento in corso / selezionato
     val maxSpeed = MutableStateFlow(store.loadMaxSpeed())
+    val maxIncline = MutableStateFlow(store.loadMaxIncline())
     val manualSpeed = MutableStateFlow(3.0)
     val manualIncline = MutableStateFlow(0.0)
+
+    init {
+        // limiti applicati a ogni comando direttamente nel modulo Bluetooth
+        ble.speedLimit = maxSpeed.value
+        ble.inclineLimit = maxIncline.value
+    }
 
     // Percorso virtuale: velocita' libera, pendenza guidata dal video
     val routeRunning = MutableStateFlow(false)
@@ -158,7 +165,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
             startRoute(id)
         } else {
             activeId.value = id
-            runner.start(w.flatSteps(), maxSpeed.value)
+            runner.start(w.flatSteps(), maxSpeed.value, maxIncline.value)
         }
     }
 
@@ -183,9 +190,9 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         routeJob = viewModelScope.launch {
             ble.requestControl()
             ble.start()
-            delay(4000)
+            ble.awaitBeltMoving()
             val prof = w.route.inclineAt(0.0)
-            val inc0 = (prof ?: routeIncline.value).roundToInt().coerceIn(0, 15)
+            val inc0 = (prof ?: routeIncline.value).roundToInt().coerceIn(0, maxIncline.value.toInt())
             routeIncline.value = inc0.toDouble()
             if (prof != null) lastProfileIncline = inc0
             lastInclineSentMs = SystemClock.elapsedRealtime()
@@ -218,7 +225,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
             routePaused.value = false
             viewModelScope.launch {
                 ble.start()
-                delay(4000)
+                ble.awaitBeltMoving()
                 ble.setSpeed(routeSpeed.value)
                 ble.setIncline(routeIncline.value)
             }
@@ -233,7 +240,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Correzione manuale: vale fino al prossimo cambio di pendenza previsto dal profilo. */
     fun routeAdjustIncline(delta: Double) {
-        routeIncline.value = (routeIncline.value + delta).coerceIn(0.0, 15.0)
+        routeIncline.value = (routeIncline.value + delta).coerceIn(0.0, maxIncline.value)
         lastInclineSentMs = SystemClock.elapsedRealtime()
         if (routeRunning.value && !routePaused.value) ble.setIncline(routeIncline.value)
     }
@@ -265,7 +272,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         // Pendenza dal profilo
-        val target = w.route.inclineAt(sec)?.roundToInt()?.coerceIn(0, 15) ?: return
+        val target = w.route.inclineAt(sec)?.roundToInt()?.coerceIn(0, maxIncline.value.toInt()) ?: return
         if (target == lastProfileIncline) return
         if (now - lastInclineSentMs < 2000) return
         lastProfileIncline = target
@@ -277,7 +284,15 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     fun setMaxSpeed(v: Double) {
         val c = v.coerceIn(3.0, 15.0)
         maxSpeed.value = c
+        ble.speedLimit = c
         store.saveMaxSpeed(c)
+    }
+
+    fun setMaxIncline(v: Double) {
+        val c = v.coerceIn(0.0, 15.0)
+        maxIncline.value = c
+        ble.inclineLimit = c
+        store.saveMaxIncline(c)
     }
 
     // ---------------------------------------------------------------- controllo manuale
@@ -285,7 +300,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             ble.requestControl()
             ble.start()
-            delay(4000)
+            ble.awaitBeltMoving()
             ble.setSpeed(manualSpeed.value)
             ble.setIncline(manualIncline.value)
         }
@@ -300,7 +315,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun adjustIncline(delta: Double) {
-        manualIncline.value = (manualIncline.value + delta).coerceIn(0.0, 15.0)
+        manualIncline.value = (manualIncline.value + delta).coerceIn(0.0, maxIncline.value)
         ble.setIncline(manualIncline.value)
     }
 

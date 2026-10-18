@@ -197,6 +197,9 @@ class WorkoutStore(ctx: Context) {
     fun loadMaxSpeed(): Double = prefs.getFloat("max", 8f).toDouble()
     fun saveMaxSpeed(v: Double) = prefs.edit().putFloat("max", v.toFloat()).apply()
 
+    fun loadMaxIncline(): Double = prefs.getFloat("maxinc", 8f).toDouble()
+    fun saveMaxIncline(v: Double) = prefs.edit().putFloat("maxinc", v.toFloat()).apply()
+
     private fun sample() = Workout(
         name = "Camminata base",
         blocks = listOf(
@@ -240,10 +243,10 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
     private fun round1(x: Double) = (x * 10).roundToInt() / 10.0
     private fun roundHalf(x: Double) = (x * 2).roundToInt() / 2.0
 
-    fun start(steps: List<Step>, maxSpeed: Double) {
+    fun start(steps: List<Step>, maxSpeed: Double, maxIncline: Double) {
         if (steps.isEmpty() || job?.isActive == true) return
         paused = false
-        job = scope.launch { run(steps, maxSpeed) }
+        job = scope.launch { run(steps, maxSpeed, maxIncline) }
     }
 
     fun pauseResume() {
@@ -262,7 +265,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
         progress.value = Progress(message = "Fermato")
     }
 
-    private suspend fun run(steps: List<Step>, maxSpeed: Double) {
+    private suspend fun run(steps: List<Step>, maxSpeed: Double, maxIncline: Double) {
         val total = steps.sumOf { it.durationSec }
         var elapsedTotal = 0
         progress.value = Progress(
@@ -271,16 +274,16 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
 
         ble.requestControl()
         ble.start()
-        delay(START_DELAY_MS)
+        ble.awaitBeltMoving()
 
         var prevSpeed = round1(min(steps[0].speedKmh, maxSpeed))
-        var prevInc = roundHalf(steps[0].inclinePct)
+        var prevInc = roundHalf(min(steps[0].inclinePct, maxIncline))
         var sentSpeed: Double? = null
         var sentInc: Double? = null
 
         for ((idx, step) in steps.withIndex()) {
             val tgtSpeed = round1(min(step.speedKmh, maxSpeed))
-            val tgtInc = roundHalf(step.inclinePct)
+            val tgtInc = roundHalf(min(step.inclinePct, maxIncline))
 
             for (t in 0 until step.durationSec) {
                 if (!ble.connected.value) {
@@ -293,7 +296,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
                 if (paused) {
                     while (paused) delay(250)
                     ble.start()
-                    delay(START_DELAY_MS)
+                    ble.awaitBeltMoving()
                     sentSpeed = null
                     sentInc = null
                 }

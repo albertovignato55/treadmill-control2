@@ -123,6 +123,7 @@ fun ManualTab(vm: TapisViewModel) {
     val incline by vm.manualIncline.collectAsStateWithLifecycle()
     val connected by vm.ble.connected.collectAsStateWithLifecycle()
     val maxSpeed by vm.maxSpeed.collectAsStateWithLifecycle()
+    val maxIncline by vm.maxIncline.collectAsStateWithLifecycle()
 
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
@@ -155,6 +156,13 @@ fun ManualTab(vm: TapisViewModel) {
             value = maxSpeed.toFloat(),
             onValueChange = { vm.setMaxSpeed((it * 2).roundToInt() / 2.0) },
             valueRange = 3f..15f,
+        )
+
+        Text("Limite massimo di pendenza: ${fmt(maxIncline)} %", style = MaterialTheme.typography.titleSmall)
+        Slider(
+            value = maxIncline.toFloat(),
+            onValueChange = { vm.setMaxIncline((it * 2).roundToInt() / 2.0) },
+            valueRange = 0f..15f,
         )
     }
 }
