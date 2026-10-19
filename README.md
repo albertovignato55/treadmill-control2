@@ -1,4 +1,4 @@
-# Tapis Control (v0.11)
+# Tapis Control (v0.13)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -138,3 +138,14 @@ La compilazione parte da sola nella scheda Actions.
   vicino, e mai oltre il limite massimo. Il cursore del limite di pendenza va a numeri interi.
 - "Copia prompt per Claude" ora chiede pendenze intere. Nel codice il passo e' `INCLINE_STEP` (Workout.kt).
 - Si installa sopra la v0.10 (stessa firma).
+
+## Novita' v0.12 - Step numerati in modo progressivo
+- Nell'editor dell'allenamento gli step sono numerati 1, 2, 3... su tutto l'allenamento, e non ripartono da 1 in
+  ogni blocco. Un blocco ripetuto (Ripeti x N) conta i suoi step una sola volta nell'editor; la scheda *In corso*
+  conta invece anche le ripetizioni (Step X/Y).
+- Si installa sopra la v0.11 (stessa firma).
+
+## Novita' v0.13 - Numeri degli step coerenti con "In corso"
+- Sotto il nome di ogni blocco ripetuto (o preceduto da blocchi ripetuti) l'editor mostra la numerazione della
+  scheda *In corso*, ripetizioni comprese. Esempio: "In corso: step 5-12 (2 step x 4 ripetizioni)".
+- Si installa sopra la v0.12 (stessa firma).

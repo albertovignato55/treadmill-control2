@@ -174,9 +174,11 @@ fun WorkoutEditor(vm: TapisViewModel, w: Workout, onGoRun: () -> Unit) {
         }
         item { VideoSection(w, vm) }
         if (w.mode == WorkoutMode.STEPS) {
-            itemsIndexed(w.blocks, key = { _, b -> b.id }) { _, b ->
+            itemsIndexed(w.blocks, key = { _, b -> b.id }) { bi, b ->
                 BlockCard(
                     block = b,
+                    startIndex = w.blocks.take(bi).sumOf { it.steps.size },
+                    flatStart = w.blocks.take(bi).sumOf { it.steps.size * it.repeat },
                     onChange = { vm.updateBlock(it) },
                     onDelete = { vm.removeBlock(b.id) },
                     onSaveLibrary = { vm.saveBlockToLibrary(b) },
@@ -204,7 +206,14 @@ fun WorkoutEditor(vm: TapisViewModel, w: Workout, onGoRun: () -> Unit) {
 }
 
 @Composable
-fun BlockCard(block: Block, onChange: (Block) -> Unit, onDelete: () -> Unit, onSaveLibrary: () -> Unit) {
+fun BlockCard(
+    block: Block,
+    onChange: (Block) -> Unit,
+    onDelete: () -> Unit,
+    onSaveLibrary: () -> Unit,
+    startIndex: Int = 0,
+    flatStart: Int = 0,
+) {
     var nameTxt by remember(block.id) { mutableStateOf(block.name) }
     var repTxt by remember(block.id) { mutableStateOf(block.repeat.toString()) }
     var saved by remember(block.id) { mutableStateOf(false) }
@@ -231,10 +240,21 @@ fun BlockCard(block: Block, onChange: (Block) -> Unit, onDelete: () -> Unit, onS
                     modifier = Modifier.weight(1f),
                 )
             }
+            // numerazione della scheda "In corso", che conta anche le ripetizioni dei blocchi
+            if (block.steps.isNotEmpty() && (block.repeat > 1 || flatStart != startIndex)) {
+                val first = flatStart + 1
+                val last = flatStart + block.steps.size * block.repeat
+                val info = if (block.repeat > 1) {
+                    "In corso: step $first–$last (${block.steps.size} step × ${block.repeat} ripetizioni)"
+                } else {
+                    "In corso: step $first–$last"
+                }
+                Text(info, style = MaterialTheme.typography.bodySmall)
+            }
             block.steps.forEachIndexed { i, s ->
                 key(s.id) {
                     StepRow(
-                        index = i,
+                        index = startIndex + i,   // numerazione progressiva su tutto l'allenamento
                         s = s,
                         enabled = true,
                         onChange = { ns ->
