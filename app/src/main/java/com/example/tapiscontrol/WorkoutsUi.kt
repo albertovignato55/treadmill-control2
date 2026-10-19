@@ -10,27 +10,25 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun WorkoutsTab(
-    workout: Workout? = null,
+    workout: Workout,
     onStartWorkout: () -> Unit = {},
     onEditWorkout: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
-    if (workout != null) {
-        WorkoutsUi(
-            workout = workout,
-            onStartWorkout = onStartWorkout,
-            onEditWorkout = onEditWorkout,
-            onBack = onBack
-        )
-    }
+    WorkoutsUi(
+        workout = workout,
+        onStartWorkout = onStartWorkout,
+        onEditWorkout = onEditWorkout,
+        onBack = onBack
+    )
 }
 
 @Composable
 fun WorkoutsUi(
     workout: Workout,
-    onStartWorkout: () -> Unit = {},
-    onEditWorkout: () -> Unit = {},
-    onBack: () -> Unit = {}
+    onStartWorkout: () -> Unit,
+    onEditWorkout: () -> Unit,
+    onBack: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -41,18 +39,21 @@ fun WorkoutsUi(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
+            // Nome dell'allenamento
             Text(
                 text = workout.name,
                 style = MaterialTheme.typography.headlineMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
             
+            // Lista dei blocchi con numerazione progressiva globale degli step
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Contatore globale unico che attraversa tutti i blocchi senza azzerarsi
                 var globalStepIndex = 1
 
                 items(workout.blocks) { block ->
@@ -74,6 +75,7 @@ fun WorkoutsUi(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
+                            // Iterazione sicura su tutti gli step del blocco
                             block.steps.forEach { step ->
                                 Row(
                                     modifier = Modifier
@@ -90,7 +92,7 @@ fun WorkoutsUi(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
-                                globalStepIndex++
+                                globalStepIndex++ // Incrementa progressivamente in modo continuo
                             }
                         }
                     }
@@ -99,6 +101,7 @@ fun WorkoutsUi(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Pulsanti di navigazione inferiori
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
