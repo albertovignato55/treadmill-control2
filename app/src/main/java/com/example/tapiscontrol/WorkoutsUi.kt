@@ -56,9 +56,6 @@ fun WorkoutsTab(vm: TapisViewModel) {
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Contatore globale progressivo per gli step
-                var globalStepIndex = 1
-
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -72,13 +69,13 @@ fun WorkoutsTab(vm: TapisViewModel) {
                                 .padding(12.dp)
                         ) {
                             Text(
-                                text = "Allenamento e Intervalli",
+                                text = "Allenamento attivo",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Numerazione progressiva globale attiva.",
+                                text = "Intervalli con numerazione progressiva globale.",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
