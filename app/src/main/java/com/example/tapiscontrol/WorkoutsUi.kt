@@ -9,6 +9,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
+fun WorkoutsTab(
+    workout: Workout,
+    onStartWorkout: () -> Unit,
+    onEditWorkout: () -> Unit,
+    onBack: () -> Unit
+) {
+    WorkoutsUi(
+        workout = workout,
+        onStartWorkout = onStartWorkout,
+        onEditWorkout = onEditWorkout,
+        onBack = onBack
+    )
+}
+
+@Composable
 fun WorkoutsUi(
     workout: Workout,
     onStartWorkout: () -> Unit,
@@ -69,7 +84,7 @@ fun WorkoutsUi(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     Text(
-                                        text = "${step.duration}s",
+                                        text = "${step.durationSeconds}s",
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
