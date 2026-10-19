@@ -65,11 +65,11 @@ fun WorkoutsUi(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = "Step $globalStepIndex: ${step.type}",
+                                        text = "Step $globalStepIndex",
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     Text(
-                                        text = "${step.duration}s / ${step.speed} km/h",
+                                        text = "${step.duration}s",
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
