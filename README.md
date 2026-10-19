@@ -1,4 +1,4 @@
-# Tapis Control (v0.8)
+# Tapis Control (v0.11)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -112,3 +112,29 @@ La compilazione parte da sola nella scheda Actions.
 - **Salva la correzione nell'allenamento** la scrive in tutti gli step: i prossimi allenamenti partiranno da li'.
 - Include le novita' della v0.7 (punti del percorso registrati da soli, video nella scheda Manuale).
 - Si installa sopra la v0.6 o v0.7 (stessa firma).
+
+## Novita' v0.9 - Comandi Bluetooth in sequenza
+- Il tapis roulant ignora un comando quando ne riceve un altro subito dopo (nel log: nessuna "Risposta a op 0x2"
+  per la velocita'). Ora ogni comando di controllo aspetta la risposta del tapis (max 1,5 s) e una breve pausa
+  prima del successivo.
+- Se un comando di velocita' o pendenza e' ancora in coda quando ne arriva uno piu' recente, viene sostituito:
+  toccare piu' volte +0,1 non intasa la coda.
+- Se il tapis non applica il valore, la ripetizione parte dopo 3 s (prima 6 s).
+- Si installa sopra la v0.8 (stessa firma).
+
+## Novita' v0.10
+- **L'app non forza piu' i valori cambiati dalla console del tapis roulant.** La verifica dei comandi (v0.5)
+  ripeteva la velocita' richiesta ogni volta che il valore letto era diverso, anche se l'avevi cambiato tu dalla
+  console: la riportava a 3 km/h per 5 volte. Ora ripete il comando solo finche' il valore non e' stato raggiunto
+  la prima volta; se poi cambia (console), lo scrive nel log e non lo forza piu'. Lo stesso per la pendenza.
+- **Pendenza a passi di 0,5 %** anche nei tasti della scheda Manuale e del Percorso video (-1, -0,5, +0,5, +1) e
+  nel profilo del percorso (prima era a numeri interi).
+- Si installa sopra la v0.9 (stessa firma).
+
+## Novita' v0.11 - Pendenza a passi interi (1 %)
+- Il tapis roulant cambia pendenza di **1 % per volta** (console, manubrio, Bluetooth): i mezzi punti della v0.10
+  non servivano. Tolti i tasti da 0,5 %.
+- Ogni pendenza (intervalli, percorso, correzioni, import JSON, comandi) e' arrotondata al numero intero piu'
+  vicino, e mai oltre il limite massimo. Il cursore del limite di pendenza va a numeri interi.
+- "Copia prompt per Claude" ora chiede pendenze intere. Nel codice il passo e' `INCLINE_STEP` (Workout.kt).
+- Si installa sopra la v0.10 (stessa firma).

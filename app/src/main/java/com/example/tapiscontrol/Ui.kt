@@ -214,7 +214,7 @@ fun ManualTab(vm: TapisViewModel) {
         Text("Limite massimo di pendenza: ${fmt(maxIncline)} %", style = MaterialTheme.typography.titleSmall)
         Slider(
             value = maxIncline.toFloat(),
-            onValueChange = { vm.setMaxIncline((it * 2).roundToInt() / 2.0) },
+            onValueChange = { vm.setMaxIncline(it.roundToInt().toDouble()) },
             valueRange = 0f..15f,
         )
     }

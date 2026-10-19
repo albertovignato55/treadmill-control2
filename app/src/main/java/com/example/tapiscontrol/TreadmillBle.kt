@@ -48,7 +48,8 @@ class TreadmillBle(private val context: Context) {
 
     // Coda delle operazioni GATT (Android ne accetta una alla volta)
     private val lock = Any()
-    private val queue = ArrayDeque<() -> Boolean>()
+    private class QueuedOp(val key: String?, val op: () -> Boolean)
+    private val queue = ArrayDeque<QueuedOp>()
     private var busy = false
 
     fun addLog(msg: String) {
@@ -103,7 +104,8 @@ class TreadmillBle(private val context: Context) {
     }
 
     private fun cleanup() {
-        synchronized(lock) { queue.clear(); busy = false }
+        synchronized(lock) { queue.clear(); busy = false; cpWaiting = false; cpEarlyResponse = false }
+        handler.removeCallbacks(responseTimeout)
         gatt?.close()
         gatt = null
         controlPoint = null
@@ -161,8 +163,14 @@ class TreadmillBle(private val context: Context) {
         }
 
         override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, st: Int) {
-            if (st != BluetoothGatt.GATT_SUCCESS) addLog("Scrittura fallita (status $st)")
-            done()
+            if (st != BluetoothGatt.GATT_SUCCESS) {
+                addLog("Scrittura fallita (status $st)")
+                done()
+            } else if (c.uuid == Ftms.CONTROL_POINT) {
+                holdForResponse()   // il comando successivo parte solo dopo la risposta del tapis (o dopo 1,5 s)
+            } else {
+                done()
+            }
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, st: Int) {
@@ -207,6 +215,7 @@ class TreadmillBle(private val context: Context) {
                     val op = v[1].toInt() and 0xFF
                     val res = v[2].toInt() and 0xFF
                     addLog("Risposta a op 0x${op.toString(16)}: ${resultName(res)}")
+                    onCpResponse()
                     if (op == Ftms.OP_REQUEST_CONTROL && res == 1) controlGranted.value = true
                 }
             }
@@ -222,20 +231,53 @@ class TreadmillBle(private val context: Context) {
         else -> "codice $code"
     }
 
-    // ---------------------------------------------------------------- coda GATT
-    private fun enqueue(op: () -> Boolean) {
+    // ---------------------------------------------------------------- attesa risposta ai comandi
+    // Il tapis roulant tende a ignorare un comando se ne arriva un altro subito dopo: ogni comando di controllo
+    // aspetta la risposta del tapis (max 1,5 s) e poi una breve pausa prima del successivo.
+    private var cpWaiting = false
+    private var cpEarlyResponse = false
+    private val responseTimeout = Runnable {
+        synchronized(lock) { if (!cpWaiting) return@Runnable; cpWaiting = false }
+        done()
+    }
+
+    private fun holdForResponse() {
         synchronized(lock) {
-            queue.addLast(op)
+            if (cpEarlyResponse) {
+                cpEarlyResponse = false
+                handler.postDelayed({ done() }, 250)
+                return
+            }
+            cpWaiting = true
+        }
+        handler.postDelayed(responseTimeout, 1500)
+    }
+
+    private fun onCpResponse() {
+        synchronized(lock) {
+            if (!cpWaiting) { cpEarlyResponse = true; return }
+            cpWaiting = false
+        }
+        handler.removeCallbacks(responseTimeout)
+        handler.postDelayed({ done() }, 250)
+    }
+
+    // ---------------------------------------------------------------- coda GATT
+    private fun enqueue(key: String? = null, op: () -> Boolean) {
+        synchronized(lock) {
+            // un comando di velocita'/pendenza non ancora inviato viene sostituito da quello piu' recente
+            if (key != null) queue.removeAll { it.key == key }
+            queue.addLast(QueuedOp(key, op))
             if (!busy) next()
         }
     }
 
     private fun next() {
         synchronized(lock) {
-            val op = queue.removeFirstOrNull()
-            if (op == null) { busy = false; return }
+            val q = queue.removeFirstOrNull()
+            if (q == null) { busy = false; return }
             busy = true
-            val ok = try { op() } catch (e: Exception) { false }
+            val ok = try { q.op() } catch (e: Exception) { false }
             if (!ok) { addLog("Operazione GATT rifiutata"); next() }
         }
     }
@@ -261,6 +303,7 @@ class TreadmillBle(private val context: Context) {
 
     @Suppress("DEPRECATION")
     private fun writeCp(data: ByteArray): Boolean {
+        synchronized(lock) { cpEarlyResponse = false }
         val g = gatt ?: return false
         val c = controlPoint ?: return false
         return if (Build.VERSION.SDK_INT >= 33) {
@@ -277,6 +320,11 @@ class TreadmillBle(private val context: Context) {
     private fun sendCommand(vararg bytes: Int) {
         val data = ByteArray(bytes.size) { bytes[it].toByte() }
         enqueue { writeCp(data) }
+    }
+
+    private fun sendKeyed(key: String, vararg bytes: Int) {
+        val data = ByteArray(bytes.size) { bytes[it].toByte() }
+        enqueue(key) { writeCp(data) }
     }
 
     fun requestControl() = sendCommand(Ftms.OP_REQUEST_CONTROL)
@@ -308,6 +356,8 @@ class TreadmillBle(private val context: Context) {
     private var inclineSentAt = 0L
     private var speedTries = 0
     private var inclineTries = 0
+    private var speedReached = false     // la velocita' richiesta e' gia' stata raggiunta almeno una volta
+    private var inclineReached = false
     private var enforcerPosted = false
 
     private fun clearWanted() { wantSpeed = null; wantIncline = null }
@@ -328,9 +378,17 @@ class TreadmillBle(private val context: Context) {
             val cs = l.speedKmh
             // si ripete solo se il nastro e' in movimento: mai a nastro fermo
             if (ws != null && cs != null && cs > 0.3) {
-                if (abs(cs - ws) <= 0.25) {
+                val diff = abs(cs - ws)
+                if (diff <= 0.25) {
                     speedTries = 0
-                } else if (now - speedSentAt >= 6000) {
+                    speedReached = true
+                } else if (speedReached) {
+                    // raggiunta e poi cambiata (di solito dalla console del tapis): non la riporto indietro
+                    if (diff > 0.4) {
+                        wantSpeed = null
+                        addLog("Velocita' cambiata dal tapis ($cs km/h): non la forzo piu'.")
+                    }
+                } else if (now - speedSentAt >= 3000) {
                     if (speedTries < 5) {
                         speedTries++; speedSentAt = now; writeSpeed(ws, true)
                     } else if (speedTries == 5) {
@@ -342,9 +400,16 @@ class TreadmillBle(private val context: Context) {
             val wi = wantIncline
             val ci = l.inclinePct
             if (wi != null && ci != null && cs != null && cs > 0.3) {
-                if (abs(ci - wi) <= 0.4) {
+                val diffI = abs(ci - wi)
+                if (diffI <= 0.4) {
                     inclineTries = 0
-                } else if (now - inclineSentAt >= 6000) {
+                    inclineReached = true
+                } else if (inclineReached) {
+                    if (diffI > 0.6) {
+                        wantIncline = null
+                        addLog("Pendenza cambiata dal tapis ($ci %): non la forzo piu'.")
+                    }
+                } else if (now - inclineSentAt >= 3000) {
                     if (inclineTries < 5) {
                         inclineTries++; inclineSentAt = now; writeIncline(wi, true)
                     } else if (inclineTries == 5) {
@@ -363,29 +428,33 @@ class TreadmillBle(private val context: Context) {
         wantSpeed = s
         speedSentAt = SystemClock.elapsedRealtime()
         speedTries = 0
+        speedReached = false
         writeSpeed(s, false)
         ensureEnforcer()
     }
 
     private fun writeSpeed(s: Double, repeat: Boolean) {
         val v = (s * 100).roundToInt().coerceIn(0, 0xFFFF)
-        sendCommand(Ftms.OP_SET_SPEED, v and 0xFF, (v shr 8) and 0xFF)
+        sendKeyed("speed", Ftms.OP_SET_SPEED, v and 0xFF, (v shr 8) and 0xFF)
         addLog(if (repeat) "-> velocita' $s km/h (ripeto)" else "-> velocita' $s km/h")
     }
 
     fun setIncline(pct: Double) {
-        var p = pct.coerceIn(0.0, inclineLimit)
+        var p = roundIncline(pct.coerceIn(0.0, inclineLimit))
+        if (p > inclineLimit) p -= INCLINE_STEP
+        p = p.coerceAtLeast(0.0)
         inclineRange.value?.let { p = p.coerceIn(it) }
         wantIncline = p
         inclineSentAt = SystemClock.elapsedRealtime()
         inclineTries = 0
+        inclineReached = false
         writeIncline(p, false)
         ensureEnforcer()
     }
 
     private fun writeIncline(p: Double, repeat: Boolean) {
         val v = (p * 10).roundToInt()
-        sendCommand(Ftms.OP_SET_INCLINE, v and 0xFF, (v shr 8) and 0xFF)
+        sendKeyed("incline", Ftms.OP_SET_INCLINE, v and 0xFF, (v shr 8) and 0xFF)
         addLog(if (repeat) "-> inclinazione $p % (ripeto)" else "-> inclinazione $p %")
     }
 }

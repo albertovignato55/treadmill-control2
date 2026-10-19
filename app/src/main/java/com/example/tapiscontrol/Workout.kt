@@ -31,6 +31,10 @@ data class Block(
     val steps: List<Step>,
 )
 
+/** La pendenza di questo tapis roulant cambia di 1 % per volta (console, manubrio e comandi Bluetooth). */
+const val INCLINE_STEP = 1.0
+fun roundIncline(x: Double): Double = (x / INCLINE_STEP).roundToInt() * INCLINE_STEP
+
 enum class VideoType { NONE, LOCAL, YOUTUBE }
 
 /** STEPS = allenamento a intervalli; ROUTE = percorso virtuale (pendenza guidata dal video, velocita' libera). */
@@ -268,7 +272,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
     }
 
     private fun round1(x: Double) = (x * 10).roundToInt() / 10.0
-    private fun roundHalf(x: Double) = (x * 2).roundToInt() / 2.0
+    private fun roundHalf(x: Double) = roundIncline(x)   // nome storico: ora arrotonda al passo del tapis (1 %)
 
     fun start(steps: List<Step>, maxSpeed: Double, maxIncline: Double) {
         if (steps.isEmpty() || job?.isActive == true) return

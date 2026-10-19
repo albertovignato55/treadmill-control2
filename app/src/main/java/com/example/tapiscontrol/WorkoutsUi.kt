@@ -615,8 +615,6 @@ fun RunTab(vm: TapisViewModel) {
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedButton(onClick = { vm.adjustIntervalIncline(-1.0) }) { Text("−1 %") }
-                                OutlinedButton(onClick = { vm.adjustIntervalIncline(-0.5) }) { Text("−0,5 %") }
-                                OutlinedButton(onClick = { vm.adjustIntervalIncline(0.5) }) { Text("+0,5 %") }
                                 OutlinedButton(onClick = { vm.adjustIntervalIncline(1.0) }) { Text("+1 %") }
                             }
                             if (speedOff != 0.0 || incOff != 0.0) {

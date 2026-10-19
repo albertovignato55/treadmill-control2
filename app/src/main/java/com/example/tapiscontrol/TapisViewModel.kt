@@ -75,7 +75,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     @Volatile var videoDurSec = 0.0                 // durata del video (0 = sconosciuta), per il giro virtuale
     @Volatile private var lastPlayerReportMs = 0L   // ultima volta che il lettore ha riportato la posizione
     private var routeJob: Job? = null
-    private var lastProfileIncline: Int? = null
+    private var lastProfileIncline: Double? = null
     private var lastInclineSentMs = 0L
     private var lastProfileSpeed: Double? = null   // ultima velocita' obiettivo dal profilo
     private var speedSlewing = false               // true finche' la velocita' non ha raggiunto l'obiettivo
@@ -227,7 +227,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
                 b.copy(steps = b.steps.map { st ->
                     st.copy(
                         speedKmh = ((st.speedKmh + ds).coerceIn(1.0, maxS) * 10).roundToInt() / 10.0,
-                        inclinePct = ((st.inclinePct + di).coerceIn(0.0, maxI) * 2).roundToInt() / 2.0,
+                        inclinePct = roundIncline((st.inclinePct + di).coerceIn(0.0, maxI)),
                     )
                 })
             })
@@ -267,12 +267,12 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
             ble.start()
             ble.awaitBeltMoving()
             val prof = w.route.inclineAt(0.0)
-            val inc0 = (prof ?: routeIncline.value).roundToInt().coerceIn(0, maxIncline.value.toInt())
-            routeIncline.value = inc0.toDouble()
+            val inc0 = roundIncline(prof ?: routeIncline.value).coerceIn(0.0, maxIncline.value)
+            routeIncline.value = inc0
             if (prof != null) lastProfileIncline = inc0
             lastInclineSentMs = SystemClock.elapsedRealtime()
             ble.setSpeed(routeSpeed.value)
-            ble.setIncline(inc0.toDouble())
+            ble.setIncline(inc0)
             routeMessage.value = ""
             while (ble.connected.value) delay(1000)
             routeRunning.value = false
@@ -366,13 +366,14 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         // Pendenza dal profilo
-        val target = w.route.inclineAt(sec)?.roundToInt()?.coerceIn(0, maxIncline.value.toInt()) ?: return
+        val target = w.route.inclineAt(sec)
+            ?.let { roundIncline(it).coerceIn(0.0, maxIncline.value) } ?: return
         if (target == lastProfileIncline) return
         if (now - lastInclineSentMs < 2000) return
         lastProfileIncline = target
         lastInclineSentMs = now
-        routeIncline.value = target.toDouble()
-        ble.setIncline(target.toDouble())
+        routeIncline.value = target
+        ble.setIncline(target)
     }
 
     fun setMaxSpeed(v: Double) {

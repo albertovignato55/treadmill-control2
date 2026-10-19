@@ -87,7 +87,7 @@ fun parsePlannerWorkout(rawText: String): ImportResult {
             Step(
                 durationSec = d,
                 speedKmh = ((sp0 + (sp1 - sp0) * f) * 10).roundToInt() / 10.0,
-                inclinePct = ((in0 + (in1 - in0) * f) * 2).roundToInt() / 2.0,
+                inclinePct = roundIncline(in0 + (in1 - in0) * f),
             )
         }
         blocks += Block(name = label, repeat = 1, steps = steps)
@@ -126,7 +126,7 @@ AVVISI OBBLIGATORI (scrivili prima del JSON):
 
 LIMITI DEL MIO TAPIS ROULANT (non superarli mai):
 - velocita' massima $sp km/h, pendenza massima $inc %
-- velocita' a passi di 0,1 km/h, pendenza a passi di 0,5 %
+- velocita' a passi di 0,1 km/h, pendenza SOLO a numeri interi (il tapis cambia di 1 % per volta)
 
 FORMATO DI USCITA: un solo oggetto JSON valido, in un blocco di codice, con SOLO queste chiavi.
 Radice: "units" (sempre "metric"), "speedUnit" (sempre "speed", velocita' in km/h come numeri), "name", "segments".
@@ -139,7 +139,7 @@ REGOLE:
 - "speedInterval" solo se startSpeed e' diversa da endSpeed; "inclineInterval" solo se startIncline e' diversa
   da endIncline. Se mancano valgono 60 s.
 - Se un segmento cambia velocita' o pendenza, deve iniziare con valori diversi da quelli di fine del segmento
-  precedente (almeno 0,1 km/h o 0,5 %). Se invece e' un tratto costante voluto (start = end), puo' riprendere
+  precedente (almeno 0,1 km/h o 1 %). Se invece e' un tratto costante voluto (start = end), puo' riprendere
   gli stessi valori.
 - Dopo i tratti intensi inserisci un segmento di recupero con intensita' piu' bassa del 15-20 %.
 - Con dolore alle ginocchia: pendenze graduali, niente scatti, defaticamento lungo.
