@@ -9,69 +9,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun VideoCard(mv: Any, title: String, content: @Composable (Any) -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            content(mv)
-        }
-    }
-}
-
-@Composable
 fun WorkoutsTab(
-    workout: Workout,
-    onStartWorkout: () -> Unit = {},
-    onEditWorkout: () -> Unit = {},
-    onBack: () -> Unit = {}
+    vm: TapisViewModel
 ) {
-    WorkoutsUi(
-        workout = workout,
-        onStartWorkout = onStartWorkout,
-        onEditWorkout = onEditWorkout,
-        onBack = onBack
-    )
-}
-
-@Composable
-fun WorkoutsTab(
-    viewModel: Any,
-    onStartWorkout: () -> Unit = {},
-    onEditWorkout: () -> Unit = {},
-    onBack: () -> Unit = {}
-) {
-    val dummyWorkout = Workout(name = "Allenamento", blocks = emptyList())
-    WorkoutsUi(
-        workout = dummyWorkout,
-        onStartWorkout = onStartWorkout,
-        onEditWorkout = onEditWorkout,
-        onBack = onBack
-    )
-}
-
-@Composable
-fun WorkoutsUi(
-    workout: Workout,
-    onStartWorkout: () -> Unit = {},
-    onEditWorkout: () -> Unit = {},
-    onBack: () -> Unit = {}
-) {
+    val workout = vm.currentWorkout
+    
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -82,58 +24,69 @@ fun WorkoutsUi(
                 .padding(16.dp)
         ) {
             Text(
-                text = workout.name,
+                text = workout?.name ?: "Nessun allenamento selezionato",
                 style = MaterialTheme.typography.headlineMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
             
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                var globalStepIndex = 1
+            if (workout != null) {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Contatore globale unico per la numerazione progressiva continua
+                    var globalStepIndex = 1
 
-                items(workout.blocks) { block ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                text = block.name.ifEmpty { "Blocco" },
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
+                    items(workout.blocks) { block ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = block.name.ifEmpty { "Blocco" },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
 
-                            block.steps.forEach { step ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Step $globalStepIndex",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        text = step.toString(),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
+                                block.steps.forEach { step ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Step $globalStepIndex",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = "${step.durationSeconds}s @ ${step.targetSpeedKmh} km/h",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                    globalStepIndex++
                                 }
-                                globalStepIndex++
                             }
                         }
                     }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    Text("Seleziona o importa un allenamento per iniziare.")
                 }
             }
 
@@ -144,13 +97,8 @@ fun WorkoutsUi(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = onBack,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Indietro")
-                }
-                Button(
-                    onClick = onStartWorkout,
+                    onClick = { vm.startWorkout() },
+                    enabled = workout != null,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Avvia")
