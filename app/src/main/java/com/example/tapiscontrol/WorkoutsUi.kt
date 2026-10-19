@@ -34,7 +34,14 @@ fun VideoCard(mv: Any, title: String, content: @Composable (Any) -> Unit) {
 }
 
 @Composable
-fun WorkoutsTab(vm: TapisViewModel) {
+fun WorkoutsTab(
+    vm: TapisViewModel? = null,
+    workout: Workout? = null,
+    onGoRun: () -> Unit = {},
+    onStartWorkout: () -> Unit = {},
+    onEditWorkout: () -> Unit = {},
+    onBack: () -> Unit = {}
+) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -69,13 +76,13 @@ fun WorkoutsTab(vm: TapisViewModel) {
                                 .padding(12.dp)
                         ) {
                             Text(
-                                text = "Allenamento attivo",
+                                text = "Intervalli con numerazione progressiva",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Intervalli con numerazione progressiva globale.",
+                                text = "Gli step dei blocchi sono numerati in sequenza continua.",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -90,7 +97,11 @@ fun WorkoutsTab(vm: TapisViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { vm.startWorkout() },
+                    onClick = { 
+                        onGoRun()
+                        onStartWorkout()
+                        vm?.startWorkout() 
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Avvia")
