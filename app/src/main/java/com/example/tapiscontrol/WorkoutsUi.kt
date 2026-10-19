@@ -9,6 +9,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
+fun VideoCard(mv: Any, title: String, content: @Composable (Any) -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            content(mv)
+        }
+    }
+}
+
+@Composable
 fun WorkoutsTab(
     workout: Workout,
     onStartWorkout: () -> Unit = {},
@@ -24,11 +50,27 @@ fun WorkoutsTab(
 }
 
 @Composable
+fun WorkoutsTab(
+    viewModel: Any,
+    onStartWorkout: () -> Unit = {},
+    onEditWorkout: () -> Unit = {},
+    onBack: () -> Unit = {}
+) {
+    val dummyWorkout = Workout(name = "Allenamento", blocks = emptyList())
+    WorkoutsUi(
+        workout = dummyWorkout,
+        onStartWorkout = onStartWorkout,
+        onEditWorkout = onEditWorkout,
+        onBack = onBack
+    )
+}
+
+@Composable
 fun WorkoutsUi(
     workout: Workout,
-    onStartWorkout: () -> Unit,
-    onEditWorkout: () -> Unit,
-    onBack: () -> Unit
+    onStartWorkout: () -> Unit = {},
+    onEditWorkout: () -> Unit = {},
+    onBack: () -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -39,21 +81,18 @@ fun WorkoutsUi(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Nome dell'allenamento
             Text(
                 text = workout.name,
                 style = MaterialTheme.typography.headlineMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
             
-            // Lista dei blocchi con numerazione progressiva globale degli step
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Contatore globale unico che attraversa tutti i blocchi senza azzerarsi
                 var globalStepIndex = 1
 
                 items(workout.blocks) { block ->
@@ -75,7 +114,6 @@ fun WorkoutsUi(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Iterazione sicura su tutti gli step del blocco
                             block.steps.forEach { step ->
                                 Row(
                                     modifier = Modifier
@@ -92,7 +130,7 @@ fun WorkoutsUi(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
-                                globalStepIndex++ // Incrementa progressivamente in modo continuo
+                                globalStepIndex++
                             }
                         }
                     }
@@ -101,7 +139,6 @@ fun WorkoutsUi(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Pulsanti di navigazione inferiori
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
