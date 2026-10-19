@@ -88,6 +88,7 @@ fun WorkoutList(vm: TapisViewModel, workouts: List<Workout>, onGoRun: () -> Unit
                         VideoType.NONE -> ""
                         VideoType.LOCAL -> " · video file"
                         VideoType.YOUTUBE -> " · video YouTube"
+                        VideoType.ANIMATION -> " · animazione"
                     }
                     Text(
                         if (w.mode == WorkoutMode.ROUTE) {
@@ -334,6 +335,7 @@ fun VideoCard(video: VideoRef, key: Any, onChange: (VideoRef) -> Unit) {
                     VideoType.NONE to "Nessuno",
                     VideoType.LOCAL to "File",
                     VideoType.YOUTUBE to "YouTube",
+                    VideoType.ANIMATION to "Animazione",
                 ).forEach { (t, label) ->
                     if (video.type == t) {
                         Button(onClick = {}) { Text(label) }
@@ -346,6 +348,10 @@ fun VideoCard(video: VideoRef, key: Any, onChange: (VideoRef) -> Unit) {
             }
             when (video.type) {
                 VideoType.NONE -> {}
+                VideoType.ANIMATION -> {
+                    Text("Percorso animato: scorre alla velocità reale del tapis roulant e si inclina con la " +
+                        "pendenza, quindi segue l'allenamento e non finisce mai.")
+                }
                 VideoType.LOCAL -> {
                     OutlinedButton(onClick = { picker.launch(arrayOf("video/*")) }) { Text("Scegli file video") }
                     Text(if (video.source.isEmpty()) "Nessun file scelto" else "File scelto ✓")
@@ -513,7 +519,7 @@ fun RouteControls(vm: TapisViewModel, w: Workout, connected: Boolean) {
                 OutlinedButton(onClick = { vm.routeAdjustIncline(1.0) }) { Text("+1") }
             }
 
-            if (w.video.source.isNotEmpty()) {
+            if (w.video.active) {
                 OutlinedButton(onClick = { vm.recordRoutePoint(w.id, vm.videoPosSec, incline, speed) }) {
                     Text("Registra punto qui (velocità + pendenza)")
                 }
@@ -559,8 +565,24 @@ fun RunTab(vm: TapisViewModel) {
             val playing = running && !paused && speed >= 0.5
             val ref = w.video.refSpeedKmh
             val rate = if (speed >= 0.5) ((speed / ref) * 20).roundToInt() / 20f else 1f
+            val caption = if (!isRoute && p.running && p.stepIndex >= 0) {
+                "${w.blockNameAt(p.stepIndex)} · step ${p.stepIndex + 1}/${p.stepCount}"
+            } else {
+                ""
+            }
 
-            if (w.video.source.isNotEmpty()) {
+            if (w.video.type == VideoType.ANIMATION) {
+                AnimatedRoute(
+                    speedKmh = speed,
+                    inclinePct = live.inclinePct ?: 0.0,
+                    playing = playing,
+                    refSpeedKmh = ref,
+                    startSec = vm.videoPosSec,
+                    caption = caption,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                    onPosition = { vm.onVideoPosition(it) },
+                )
+            } else if (w.video.source.isNotEmpty()) {
                 when (w.video.type) {
                     VideoType.LOCAL ->
                         LocalVideo(
@@ -592,7 +614,7 @@ fun RunTab(vm: TapisViewModel) {
                             Text("YouTube ha rifiutato il video (codice $it): potrebbe non essere incorporabile.")
                         }
                     }
-                    VideoType.NONE -> {}
+                    VideoType.NONE, VideoType.ANIMATION -> {}
                 }
             }
 
@@ -653,7 +675,7 @@ fun RunTab(vm: TapisViewModel) {
                 }
             }
 
-            if (w.video.source.isNotEmpty()) {
+            if (w.video.active) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Calibra video: ripreso a ${fmt(ref)} km/h", style = MaterialTheme.typography.titleSmall)

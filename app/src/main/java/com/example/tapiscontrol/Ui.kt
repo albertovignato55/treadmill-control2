@@ -140,6 +140,19 @@ fun ManualTab(vm: TapisViewModel) {
     ) {
         if (!connected) Text("Non connesso: vai alla scheda Connessione.")
 
+        if (mv.type == VideoType.ANIMATION) {
+            AnimatedRoute(
+                speedKmh = liveSpeed,
+                inclinePct = live.inclinePct ?: 0.0,
+                playing = vPlaying,
+                refSpeedKmh = mv.refSpeedKmh,
+                startSec = vm.manualVideoPos,
+                caption = "",
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                onPosition = { vm.manualVideoPos = it },
+            )
+        }
+
         if (mv.source.isNotEmpty()) {
             when (mv.type) {
                 VideoType.LOCAL -> LocalVideo(
@@ -167,7 +180,7 @@ fun ManualTab(vm: TapisViewModel) {
                     }
                     ytError?.let { Text("YouTube ha rifiutato il video (codice $it): potrebbe non essere incorporabile.") }
                 }
-                VideoType.NONE -> {}
+                VideoType.NONE, VideoType.ANIMATION -> {}
             }
         }
 
@@ -193,7 +206,7 @@ fun ManualTab(vm: TapisViewModel) {
         }
 
         VideoCard(mv, "manual") { vm.setManualVideo(it) }
-        if (mv.source.isNotEmpty()) {
+        if (mv.active) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { vm.setManualVideo(mv.copy(refSpeedKmh = (mv.refSpeedKmh - 0.5).coerceIn(1.0, 30.0))) }) {
                     Text("Ripreso a ${fmt(mv.refSpeedKmh)}: −0,5")

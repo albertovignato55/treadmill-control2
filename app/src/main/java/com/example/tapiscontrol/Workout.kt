@@ -35,7 +35,7 @@ data class Block(
 const val INCLINE_STEP = 1.0
 fun roundIncline(x: Double): Double = (x / INCLINE_STEP).roundToInt() * INCLINE_STEP
 
-enum class VideoType { NONE, LOCAL, YOUTUBE }
+enum class VideoType { NONE, LOCAL, YOUTUBE, ANIMATION }
 
 /** STEPS = allenamento a intervalli; ROUTE = percorso virtuale (pendenza guidata dal video, velocita' libera). */
 enum class WorkoutMode { STEPS, ROUTE }
@@ -81,6 +81,9 @@ data class VideoRef(
     val refSpeedKmh: Double = 5.0,
 )
 
+/** C'e' un "video" da mostrare: un file/link oppure l'animazione (che non ha sorgente). */
+val VideoRef.active: Boolean get() = type == VideoType.ANIMATION || source.isNotEmpty()
+
 data class Workout(
     val id: Long = newStepId(),
     val name: String,
@@ -92,6 +95,17 @@ data class Workout(
 
 fun Workout.flatSteps(): List<Step> =
     blocks.flatMap { b -> (1..max(1, b.repeat)).flatMap { b.steps } }
+
+/** Nome del blocco a cui appartiene lo step (indice "piatto", ripetizioni comprese). */
+fun Workout.blockNameAt(flat: Int): String {
+    var i = 0
+    for (b in blocks) {
+        val n = b.steps.size * b.repeat
+        if (flat < i + n) return b.name
+        i += n
+    }
+    return ""
+}
 
 fun Workout.totalSec(): Int = flatSteps().sumOf { it.durationSec }
 

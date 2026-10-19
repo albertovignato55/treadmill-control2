@@ -53,7 +53,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
                 if (!moving) continue
                 if (SystemClock.elapsedRealtime() - lastPlayerReportMs < 1500) continue   // lettore visibile
                 val w = workouts.value.firstOrNull { it.id == activeId.value } ?: continue
-                if (w.video.source.isEmpty()) continue
+                if (!w.video.active) continue
                 val speed = ble.live.value.speedKmh ?: 0.0
                 if (speed < 0.5) continue
                 val rate = ((speed / w.video.refSpeedKmh) * 20).roundToInt() / 20.0
@@ -322,7 +322,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         if (!routeRunning.value || routePaused.value) return
         val id = activeId.value ?: return
         val w = workouts.value.firstOrNull { it.id == id } ?: return
-        if (w.mode != WorkoutMode.ROUTE || w.video.source.isEmpty()) return
+        if (w.mode != WorkoutMode.ROUTE || !w.video.active) return
         recordRoutePoint(id, videoPosSec, routeIncline.value, routeSpeed.value)
     }
 
