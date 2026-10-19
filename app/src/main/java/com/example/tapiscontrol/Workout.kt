@@ -266,6 +266,12 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
 
     private var job: Job? = null
     @Volatile private var paused = false
+    @Volatile private var jumpTarget: Int? = null   // step (indice piatto) a cui saltare subito
+
+    /** Salta subito allo step indicato (anche in pausa), senza attendere gli step intermedi. */
+    fun jumpTo(index: Int) {
+        if (job?.isActive == true) jumpTarget = index
+    }
 
     // Correzioni manuali: si sommano a velocita' e pendenza di OGNI step da qui alla fine, cosi' non si perdono.
     @Volatile var speedOffset = 0.0
@@ -288,14 +294,15 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
     private fun round1(x: Double) = (x * 10).roundToInt() / 10.0
     private fun roundHalf(x: Double) = roundIncline(x)   // nome storico: ora arrotonda al passo del tapis (1 %)
 
-    fun start(steps: List<Step>, maxSpeed: Double, maxIncline: Double) {
+    fun start(steps: List<Step>, maxSpeed: Double, maxIncline: Double, startIndex: Int = 0) {
         if (steps.isEmpty() || job?.isActive == true) return
         paused = false
+        jumpTarget = null
         speedOffset = 0.0
         inclineOffset = 0.0
         speedOffsetFlow.value = 0.0
         inclineOffsetFlow.value = 0.0
-        job = scope.launch { run(steps, maxSpeed, maxIncline) }
+        job = scope.launch { run(steps, maxSpeed, maxIncline, startIndex.coerceIn(0, steps.lastIndex)) }
     }
 
     fun pauseResume() {
@@ -314,27 +321,37 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
         progress.value = Progress(message = "Fermato")
     }
 
-    private suspend fun run(steps: List<Step>, maxSpeed: Double, maxIncline: Double) {
+    private suspend fun run(steps: List<Step>, maxSpeed: Double, maxIncline: Double, startIndex: Int) {
         val total = steps.sumOf { it.durationSec }
-        var elapsedTotal = 0
+        var elapsedTotal = steps.take(startIndex).sumOf { it.durationSec }
         progress.value = Progress(
-            running = true, stepCount = steps.size, totalRemainingSec = total, message = "Avvio...",
+            running = true, stepCount = steps.size, totalRemainingSec = total - elapsedTotal, message = "Avvio...",
         )
 
         ble.requestControl()
         ble.start()
         ble.awaitBeltMoving()
 
-        var prevSpeed = round1(min(steps[0].speedKmh, maxSpeed))
-        var prevInc = roundHalf(min(steps[0].inclinePct, maxIncline))
+        var prevSpeed = round1(min(steps[startIndex].speedKmh, maxSpeed))
+        var prevInc = roundHalf(min(steps[startIndex].inclinePct, maxIncline))
         var sentSpeed: Double? = null
         var sentInc: Double? = null
 
-        for ((idx, step) in steps.withIndex()) {
+        var idx = startIndex
+        var firstStep = true   // il primo step applicato parte subito, senza rampa
+        while (idx < steps.size) {
+            val step = steps[idx]
             var tgtSpeed = prevSpeed
             var tgtInc = prevInc
+            var jumpedTo: Int? = null
 
-            for (t in 0 until step.durationSec) {
+            var t = 0
+            while (t < step.durationSec) {
+                val j0 = jumpTarget
+                if (j0 != null) {
+                    jumpTarget = null
+                    if (j0 in steps.indices) { jumpedTo = j0; break }
+                }
                 tgtSpeed = round1((step.speedKmh + speedOffset).coerceIn(1.0, maxSpeed))
                 tgtInc = roundHalf((step.inclinePct + inclineOffset).coerceIn(0.0, maxIncline))
                 if (!ble.connected.value) {
@@ -350,9 +367,10 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
                     ble.awaitBeltMoving()
                     sentSpeed = null
                     sentInc = null
+                    if (jumpTarget != null) continue   // salto richiesto durante la pausa
                 }
 
-                val f = if (idx == 0 || rampSec <= 0) 1.0
+                val f = if (firstStep || rampSec <= 0) 1.0
                 else ((t + 1).toDouble() / rampSec).coerceAtMost(1.0)
                 val sp = round1(prevSpeed + (tgtSpeed - prevSpeed) * f)
                 val inc = roundHalf(prevInc + (tgtInc - prevInc) * f)
@@ -369,9 +387,22 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
                 )
                 delay(1000)
                 elapsedTotal++
+                t++
+            }
+
+            if (jumpedTo != null) {
+                // si riparte con una rampa dai valori che il tapis sta eseguendo adesso
+                prevSpeed = sentSpeed ?: prevSpeed
+                prevInc = sentInc ?: prevInc
+                idx = jumpedTo
+                elapsedTotal = steps.take(idx).sumOf { it.durationSec }
+                firstStep = false
+                continue
             }
             prevSpeed = tgtSpeed
             prevInc = tgtInc
+            idx++
+            firstStep = false
         }
 
         // Defaticamento graduale, poi stop

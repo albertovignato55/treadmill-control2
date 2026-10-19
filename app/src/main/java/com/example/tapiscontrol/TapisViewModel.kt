@@ -191,7 +191,15 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------------------------------------------------------------- esecuzione
-    fun startWorkout(id: Long) {
+    /** Step da cui partire (scelto nella scheda In corso prima di premere Avvia). */
+    val startStep = MutableStateFlow(0)
+
+    /** Durante l'allenamento salta subito allo step; da fermo sceglie lo step di partenza. */
+    fun selectStep(index: Int) {
+        if (runner.progress.value.running) runner.jumpTo(index) else startStep.value = index
+    }
+
+    fun startWorkout(id: Long, fromStep: Int = 0) {
         if (runner.progress.value.running || routeRunning.value) return
         val w = workouts.value.firstOrNull { it.id == id } ?: return
         if (w.mode == WorkoutMode.ROUTE) {
@@ -201,7 +209,8 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
             resetVideoPosition()
             savedSpeedOffset = 0.0
             savedInclineOffset = 0.0
-            runner.start(w.flatSteps(), maxSpeed.value, maxIncline.value)
+            runner.start(w.flatSteps(), maxSpeed.value, maxIncline.value, fromStep)
+            startStep.value = 0
         }
     }
 

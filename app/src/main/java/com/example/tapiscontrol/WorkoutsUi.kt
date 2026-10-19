@@ -36,6 +36,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -544,6 +545,7 @@ fun RunTab(vm: TapisViewModel) {
     val routePaused by vm.routePaused.collectAsStateWithLifecycle()
     val speedOff by vm.runner.speedOffsetFlow.collectAsStateWithLifecycle()
     val incOff by vm.runner.inclineOffsetFlow.collectAsStateWithLifecycle()
+    val startStep by vm.startStep.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     val w = workouts.firstOrNull { it.id == activeId }
     var ytError by remember(activeId) { mutableStateOf<String?>(null) }
@@ -632,7 +634,9 @@ fun RunTab(vm: TapisViewModel) {
                         if (p.message.isNotEmpty()) Text(p.message)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (!p.running) {
-                                Button(onClick = { vm.startWorkout(w.id) }, enabled = connected) { Text("Avvia") }
+                                Button(onClick = { vm.startWorkout(w.id, startStep) }, enabled = connected) {
+                                    Text(if (startStep > 0) "Avvia dallo step ${startStep + 1}" else "Avvia")
+                                }
                             } else {
                                 Button(onClick = { vm.runner.pauseResume() }) {
                                     Text(if (p.paused) "Riprendi" else "Pausa")
@@ -675,6 +679,15 @@ fun RunTab(vm: TapisViewModel) {
                 }
             }
 
+            if (!isRoute) {
+                StepPicker(
+                    w = w,
+                    currentStep = if (p.running) p.stepIndex else startStep,
+                    running = p.running,
+                    onSelect = { vm.selectStep(it) },
+                )
+            }
+
             if (w.video.active) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -694,6 +707,61 @@ fun RunTab(vm: TapisViewModel) {
     }
 }
 
+
+/** Elenco dei blocchi/step: tocca per saltare subito (in corso) o per scegliere da dove partire (da fermo). */
+@Composable
+fun StepPicker(w: Workout, currentStep: Int, running: Boolean, onSelect: (Int) -> Unit) {
+    var expanded by remember(w.id) { mutableStateOf<Set<Long>>(emptySet()) }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Salta a uno step", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (running) {
+                    "Tocca un blocco o uno step per saltarci subito, senza attendere quelli intermedi. " +
+                        "Velocità e pendenza passano al nuovo step con una rampa di pochi secondi."
+                } else {
+                    "Scegli da quale blocco o step partire, poi premi Avvia."
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            var flat = 0
+            w.blocks.forEach { b ->
+                val blockStart = flat
+                val blockEnd = flat + b.steps.size * b.repeat
+                flat = blockEnd
+                if (b.steps.isEmpty()) return@forEach
+                val isCurrent = currentStep in blockStart until blockEnd
+                val label = "${b.name}${if (b.repeat > 1) " ×${b.repeat}" else ""} · step ${blockStart + 1}–$blockEnd"
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (isCurrent) {
+                        Button(onClick = { onSelect(blockStart) }, modifier = Modifier.weight(1f)) {
+                            Text(label, maxLines = 1)
+                        }
+                    } else {
+                        OutlinedButton(onClick = { onSelect(blockStart) }, modifier = Modifier.weight(1f)) {
+                            Text(label, maxLines = 1)
+                        }
+                    }
+                    TextButton(onClick = {
+                        expanded = if (b.id in expanded) expanded - b.id else expanded + b.id
+                    }) { Text(if (b.id in expanded) "▲" else "▼") }
+                }
+                if (b.id in expanded) {
+                    b.steps.forEachIndexed { i, st ->
+                        val cur = isCurrent && (currentStep - blockStart) % b.steps.size == i
+                        TextButton(onClick = { onSelect(blockStart + i) }, modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                "${if (cur) "▶ " else ""}Step ${blockStart + i + 1} · ${fmt(st.speedKmh)} km/h · " +
+                                    "${fmt(st.inclinePct)} % · ${mmss(st.durationSec)}",
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 /** Importa un allenamento dal JSON del Treadmill Workout Planner: da file oppure incollando il testo. */
 @Composable
