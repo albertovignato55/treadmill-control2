@@ -10,25 +10,27 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun WorkoutsTab(
-    workout: Workout,
-    onStartWorkout: () -> Unit,
-    onEditWorkout: () -> Unit,
-    onBack: () -> Unit
+    workout: Workout? = null,
+    onStartWorkout: () -> Unit = {},
+    onEditWorkout: () -> Unit = {},
+    onBack: () -> Unit = {}
 ) {
-    WorkoutsUi(
-        workout = workout,
-        onStartWorkout = onStartWorkout,
-        onEditWorkout = onEditWorkout,
-        onBack = onBack
-    )
+    if (workout != null) {
+        WorkoutsUi(
+            workout = workout,
+            onStartWorkout = onStartWorkout,
+            onEditWorkout = onEditWorkout,
+            onBack = onBack
+        )
+    }
 }
 
 @Composable
 fun WorkoutsUi(
     workout: Workout,
-    onStartWorkout: () -> Unit,
-    onEditWorkout: () -> Unit,
-    onBack: () -> Unit
+    onStartWorkout: () -> Unit = {},
+    onEditWorkout: () -> Unit = {},
+    onBack: () -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -84,7 +86,7 @@ fun WorkoutsUi(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     Text(
-                                        text = "${step.durationSeconds}s",
+                                        text = step.toString(),
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
