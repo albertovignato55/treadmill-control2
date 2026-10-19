@@ -34,9 +34,17 @@ fun VideoCard(mv: Any, title: String, content: @Composable (Any) -> Unit) {
 }
 
 @Composable
-fun WorkoutsTab(vm: TapisViewModel) {
+fun WorkoutsTab(
+    vm: Any? = null,
+    workout: Any? = null,
+    onGoRun: (() -> Unit)? = null,
+    onStartWorkout: (() -> Unit)? = null,
+    onEditWorkout: (() -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
         Column(
@@ -56,9 +64,6 @@ fun WorkoutsTab(vm: TapisViewModel) {
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Contatore globale progressivo che non si azzera tra i blocchi
-                var globalStepIndex = 1
-
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -72,13 +77,13 @@ fun WorkoutsTab(vm: TapisViewModel) {
                                 .padding(12.dp)
                         ) {
                             Text(
-                                text = "Allenamento Corrente",
+                                text = "Intervalli con numerazione progressiva",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Numerazione progressiva globale degli step attiva.",
+                                text = "I blocchi e gli step scorrono in sequenza continua.",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -93,10 +98,13 @@ fun WorkoutsTab(vm: TapisViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { vm.startWorkout() },
+                    onClick = {
+                        onGoRun?.invoke()
+                        onStartWorkout?.invoke()
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Avvia Allenamento")
+                    Text("Avvia")
                 }
             }
         }
