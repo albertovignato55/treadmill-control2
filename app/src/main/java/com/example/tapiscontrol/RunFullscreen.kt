@@ -158,6 +158,13 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
                         SmallOutlined("Stop") { if (isRoute) vm.stopRoute() else vm.runner.stop() }
                     }
                 }
+                if (running && !isRoute) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Step ${p.stepIndex + 1}/${p.stepCount}", color = Color.White, fontSize = 12.sp)
+                        SmallOutlined("⏮ Precedente") { vm.selectStep((p.stepIndex - 1).coerceAtLeast(0)) }
+                        SmallOutlined("Successivo ⏭") { vm.selectStep((p.stepIndex + 1).coerceAtMost(p.stepCount - 1)) }
+                    }
+                }
                 if (running) {
                     val big = if (isRoute) 1.0 else 0.5
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

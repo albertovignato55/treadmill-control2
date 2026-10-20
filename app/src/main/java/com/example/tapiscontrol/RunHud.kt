@@ -91,11 +91,11 @@ fun RunHud(d: HudData, modifier: Modifier = Modifier, scale: Float = 1f, showDis
             d.stepRemainingSec?.let { rem ->
                 val label = if (d.lastStep) "Fine allenamento tra" else "Prossimo step tra"
                 val extra = d.nextInfo?.let { " ($it)" } ?: ""
-                HudChip("$label ${mmss(rem)}$extra", s)
+                HudChip("$label ${mmss(rem)}$extra", s * 1.15f, bold = true)
             }
             if (d.elapsedSec != null || d.totalRemainingSec != null) {
                 val parts = buildList {
-                    d.elapsedSec?.let { add("Trascorso ${mmss(it)}") }
+                    d.elapsedSec?.let { add("Totale trascorso ${mmss(it)}") }
                     d.totalRemainingSec?.let { add("Rimane ${mmss(it)}") }
                 }
                 HudChip(parts.joinToString(" · "), s)
