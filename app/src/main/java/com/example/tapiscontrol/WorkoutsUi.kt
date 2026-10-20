@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.widget.Toast
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -38,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -546,6 +548,8 @@ fun RunTab(vm: TapisViewModel) {
     val speedOff by vm.runner.speedOffsetFlow.collectAsStateWithLifecycle()
     val incOff by vm.runner.inclineOffsetFlow.collectAsStateWithLifecycle()
     val startStep by vm.startStep.collectAsStateWithLifecycle()
+    val fsDismissed by vm.fsDismissed.collectAsStateWithLifecycle()
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val ctx = LocalContext.current
     val w = workouts.firstOrNull { it.id == activeId }
     var ytError by remember(activeId) { mutableStateOf<String?>(null) }
@@ -567,11 +571,7 @@ fun RunTab(vm: TapisViewModel) {
             val playing = running && !paused && speed >= 0.5
             val ref = w.video.refSpeedKmh
             val rate = if (speed >= 0.5) ((speed / ref) * 20).roundToInt() / 20f else 1f
-            val caption = if (!isRoute && p.running && p.stepIndex >= 0) {
-                "${w.blockNameAt(p.stepIndex)} · step ${p.stepIndex + 1}/${p.stepCount}"
-            } else {
-                ""
-            }
+            val hud = buildHud(w, p, live, isRoute, remember(w) { w.flatSteps() })
 
             if (w.video.type == VideoType.ANIMATION) {
                 AnimatedRoute(
@@ -580,8 +580,9 @@ fun RunTab(vm: TapisViewModel) {
                     playing = playing,
                     refSpeedKmh = ref,
                     startSec = vm.videoPosSec,
-                    caption = caption,
+                    caption = "",
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                    hud = hud,
                     onPosition = { vm.onVideoPosition(it) },
                 )
             } else if (w.video.source.isNotEmpty()) {
@@ -617,6 +618,17 @@ fun RunTab(vm: TapisViewModel) {
                         }
                     }
                     VideoType.NONE, VideoType.ANIMATION -> {}
+                }
+            }
+
+            if (w.video.active) {
+                if (landscape && fsDismissed) {
+                    OutlinedButton(onClick = { vm.fsDismissed.value = false }) { Text("Schermo intero") }
+                } else if (!landscape) {
+                    Text(
+                        "Ruota il telefono in orizzontale per vedere il percorso a schermo intero, con tutti i dati.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
 

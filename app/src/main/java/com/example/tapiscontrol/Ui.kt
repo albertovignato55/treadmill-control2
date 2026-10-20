@@ -1,5 +1,9 @@
 package com.example.tapiscontrol
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.aspectRatio
@@ -28,12 +32,20 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -44,22 +56,60 @@ import kotlin.math.roundToInt
 internal fun fmt(d: Double): String = if (d == floor(d)) d.toInt().toString() else d.toString()
 internal fun mmss(s: Int): String = "%d:%02d".format(s / 60, s % 60)
 
+private fun Context.findActivity(): Activity? {
+    var c: Context? = this
+    while (c is ContextWrapper) {
+        if (c is Activity) return c
+        c = c.baseContext
+    }
+    return null
+}
+
 @Composable
 fun AppRoot(vm: TapisViewModel, onScan: () -> Unit) {
-    var tab by remember { mutableIntStateOf(0) }
+    // rememberSaveable + configChanges nel manifest: ruotando lo schermo si resta sulla stessa scheda
+    var tab by rememberSaveable { mutableStateOf(0) }
     val titles = listOf("Connessione", "Manuale", "Allenamenti", "In corso")
-    Scaffold { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
-            ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
-                titles.forEachIndexed { i, t ->
-                    Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) })
+
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val workouts by vm.workouts.collectAsStateWithLifecycle()
+    val activeId by vm.activeId.collectAsStateWithLifecycle()
+    val dismissed by vm.fsDismissed.collectAsStateWithLifecycle()
+    val activeW = workouts.firstOrNull { it.id == activeId }
+    // in verticale lo schermo intero si riarma da solo
+    LaunchedEffect(landscape) { if (!landscape) vm.fsDismissed.value = false }
+    val fullscreen = tab == 3 && landscape && activeW != null && activeW.video.active && !dismissed
+
+    // nasconde le barre di sistema (si richiamano con uno swipe dal bordo)
+    val view = LocalView.current
+    DisposableEffect(fullscreen) {
+        val window = view.context.findActivity()?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        if (fullscreen) {
+            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
+
+    if (fullscreen && activeW != null) {
+        RunFullscreen(vm, activeW, onExit = { vm.fsDismissed.value = true })
+    } else {
+        Scaffold { pad ->
+            Column(Modifier.padding(pad).fillMaxSize()) {
+                ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
+                    titles.forEachIndexed { i, t ->
+                        Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) })
+                    }
                 }
-            }
-            when (tab) {
-                0 -> ConnectionTab(vm, onScan)
-                1 -> ManualTab(vm)
-                2 -> WorkoutsTab(vm, onGoRun = { tab = 3 })
-                else -> RunTab(vm)
+                when (tab) {
+                    0 -> ConnectionTab(vm, onScan)
+                    1 -> ManualTab(vm)
+                    2 -> WorkoutsTab(vm, onGoRun = { tab = 3 })
+                    else -> RunTab(vm)
+                }
             }
         }
     }

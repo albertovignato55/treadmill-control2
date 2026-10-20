@@ -256,6 +256,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
         val stepCount: Int = 0,
         val stepRemainingSec: Int = 0,
         val totalRemainingSec: Int = 0,
+        val elapsedSec: Int = 0,          // tempo reale trascorso (la pausa non conta)
         val message: String = "",
     )
 
@@ -337,6 +338,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
         var sentSpeed: Double? = null
         var sentInc: Double? = null
 
+        var realElapsed = 0
         var idx = startIndex
         var firstStep = true   // il primo step applicato parte subito, senza rampa
         while (idx < steps.size) {
@@ -384,9 +386,11 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
                     stepCount = steps.size,
                     stepRemainingSec = step.durationSec - t,
                     totalRemainingSec = total - elapsedTotal,
+                    elapsedSec = realElapsed,
                 )
                 delay(1000)
                 elapsedTotal++
+                realElapsed++
                 t++
             }
 

@@ -1,4 +1,4 @@
-# Tapis Control (v0.15)
+# Tapis Control (v0.17)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -168,3 +168,24 @@ La compilazione parte da sola nella scheda Actions.
 - Da fermo, la stessa scelta imposta lo step di partenza: il pulsante diventa "Avvia dallo step N".
 - Per un blocco ripetuto il salto porta alla prima ripetizione.
 - Si installa sopra la v0.14 (stessa firma).
+
+## Novita' v0.16 - Schermo intero, nuova animazione, piu' dati
+- **Schermo intero in orizzontale**: nella scheda *In corso*, con animazione o video attivi, ruotando il telefono
+  l'immagine occupa tutto lo schermo (barre di sistema nascoste: si richiamano con uno swipe dal bordo). I dati e i
+  comandi (Avvia/Pausa/Stop, velocita' e pendenza) sono sovrapposti e si adattano a qualsiasi schermo.
+  Pulsanti in alto a destra: **Nascondi comandi** e **Esci** (con "Schermo intero" si rientra; ruotando in
+  verticale si riarma da solo). Vale anche per i video da file e YouTube.
+- **Dati sull'immagine** (anche nel riquadro in verticale per l'animazione): velocita', pendenza, battiti (se il tapis
+  li rileva), distanza (a tutto schermo), nome e numero dello step, **tempo al prossimo step** con i suoi km/h e %,
+  **tempo trascorso** (la pausa non conta) e **tempo rimanente** totale.
+- **Animazione rinnovata**: sentiero con curve e colline, foschia in lontananza, alberi (tondi, pini), cespugli,
+  sassi e fiori, nuvole su due livelli, uccelli, sole con alone, tre fasce di montagne. Si adatta a qualsiasi
+  proporzione dello schermo (anche 20:9 in orizzontale).
+- **Ruotando lo schermo non si torna piu' alla scheda Connessione**: l'app resta sulla scheda in uso (e il
+  video/allenamento non vengono interrotti).
+- Non incluso: lo schermo intero della scheda *Manuale*.
+- Si installa sopra la v0.15 (stessa firma).
+
+## Novita' v0.17 - Curve piu' marcate nell'animazione
+- Il sentiero ora ha curve ben visibili (raggio medio 50-60 m, con S e cambi di direzione) invece di lievi ondulazioni.
+- Gli alberi e il paesaggio seguono le curve; il resto e' invariato rispetto alla v0.16.
