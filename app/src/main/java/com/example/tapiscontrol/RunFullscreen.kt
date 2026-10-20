@@ -28,18 +28,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.height
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.roundToInt
 
-private val BTN_PAD = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+private val BTN_PAD = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
 
 @Composable
 private fun SmallOutlined(text: String, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
+        modifier = Modifier.height(32.dp),
         contentPadding = BTN_PAD,
         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-    ) { Text(text) }
+    ) { Text(text, fontSize = 12.sp) }
 }
 
 /**
@@ -110,7 +113,7 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
             }
         }
 
-        RunHud(hud, Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout), scale = 1.35f)
+        RunHud(hud, Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout), scale = 0.95f, showDistance = true)
 
         val note = ytError?.let { "YouTube ha rifiutato il video (codice $it)" } ?: message
         if (note.isNotEmpty()) {
@@ -143,27 +146,29 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
                         Button(
                             onClick = { if (isRoute) vm.startRoute(w.id) else vm.startWorkout(w.id, startStep) },
                             enabled = connected,
-                            contentPadding = BTN_PAD,
-                        ) { Text(if (!isRoute && startStep > 0) "Avvia dallo step ${startStep + 1}" else "Avvia") }
+                            modifier = Modifier.height(32.dp),
+        contentPadding = BTN_PAD,
+                        ) { Text(if (!isRoute && startStep > 0) "Avvia dallo step ${startStep + 1}" else "Avvia", fontSize = 12.sp) }
                     } else {
                         Button(
                             onClick = { if (isRoute) vm.routePauseResume() else vm.runner.pauseResume() },
-                            contentPadding = BTN_PAD,
-                        ) { Text(if (paused) "Riprendi" else "Pausa") }
+                            modifier = Modifier.height(32.dp),
+        contentPadding = BTN_PAD,
+                        ) { Text(if (paused) "Riprendi" else "Pausa", fontSize = 12.sp) }
                         SmallOutlined("Stop") { if (isRoute) vm.stopRoute() else vm.runner.stop() }
                     }
                 }
                 if (running) {
                     val big = if (isRoute) 1.0 else 0.5
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Velocità", color = Color.White)
+                        Text("Velocità", color = Color.White, fontSize = 12.sp)
                         SmallOutlined("−${fmt(big)}") { if (isRoute) vm.routeAdjustSpeed(-big) else vm.adjustIntervalSpeed(-big) }
                         SmallOutlined("−0,1") { if (isRoute) vm.routeAdjustSpeed(-0.1) else vm.adjustIntervalSpeed(-0.1) }
                         SmallOutlined("+0,1") { if (isRoute) vm.routeAdjustSpeed(0.1) else vm.adjustIntervalSpeed(0.1) }
                         SmallOutlined("+${fmt(big)}") { if (isRoute) vm.routeAdjustSpeed(big) else vm.adjustIntervalSpeed(big) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Pendenza", color = Color.White)
+                        Text("Pendenza", color = Color.White, fontSize = 12.sp)
                         SmallOutlined("−1 %") { if (isRoute) vm.routeAdjustIncline(-1.0) else vm.adjustIntervalIncline(-1.0) }
                         SmallOutlined("+1 %") { if (isRoute) vm.routeAdjustIncline(1.0) else vm.adjustIntervalIncline(1.0) }
                     }

@@ -28,6 +28,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     // video della scheda Manuale (indipendente dagli allenamenti)
     // schermo intero in orizzontale: true = l'utente l'ha chiuso (si riattiva ruotando in verticale o col pulsante)
     val fsDismissed = MutableStateFlow(false)
+    val manualFsDismissed = MutableStateFlow(false)   // lo stesso, per la scheda Manuale
 
     val manualVideo = MutableStateFlow(store.loadManualVideo())
     @Volatile var manualVideoPos = 0.0

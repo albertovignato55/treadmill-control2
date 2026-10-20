@@ -75,10 +75,19 @@ fun AppRoot(vm: TapisViewModel, onScan: () -> Unit) {
     val workouts by vm.workouts.collectAsStateWithLifecycle()
     val activeId by vm.activeId.collectAsStateWithLifecycle()
     val dismissed by vm.fsDismissed.collectAsStateWithLifecycle()
+    val manualDismissed by vm.manualFsDismissed.collectAsStateWithLifecycle()
+    val manualVideo by vm.manualVideo.collectAsStateWithLifecycle()
     val activeW = workouts.firstOrNull { it.id == activeId }
     // in verticale lo schermo intero si riarma da solo
-    LaunchedEffect(landscape) { if (!landscape) vm.fsDismissed.value = false }
-    val fullscreen = tab == 3 && landscape && activeW != null && activeW.video.active && !dismissed
+    LaunchedEffect(landscape) {
+        if (!landscape) {
+            vm.fsDismissed.value = false
+            vm.manualFsDismissed.value = false
+        }
+    }
+    val runFullscreen = tab == 3 && landscape && activeW != null && activeW.video.active && !dismissed
+    val manualFullscreen = tab == 1 && landscape && manualVideo.active && !manualDismissed
+    val fullscreen = runFullscreen || manualFullscreen
 
     // nasconde le barre di sistema (si richiamano con uno swipe dal bordo)
     val view = LocalView.current
@@ -94,8 +103,10 @@ fun AppRoot(vm: TapisViewModel, onScan: () -> Unit) {
         onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
     }
 
-    if (fullscreen && activeW != null) {
+    if (runFullscreen && activeW != null) {
         RunFullscreen(vm, activeW, onExit = { vm.fsDismissed.value = true })
+    } else if (manualFullscreen) {
+        ManualFullscreen(vm, manualVideo, onExit = { vm.manualFsDismissed.value = true })
     } else {
         Scaffold { pad ->
             Column(Modifier.padding(pad).fillMaxSize()) {
@@ -177,6 +188,8 @@ fun ManualTab(vm: TapisViewModel) {
     val maxSpeed by vm.maxSpeed.collectAsStateWithLifecycle()
     val maxIncline by vm.maxIncline.collectAsStateWithLifecycle()
     val mv by vm.manualVideo.collectAsStateWithLifecycle()
+    val manualDismissed by vm.manualFsDismissed.collectAsStateWithLifecycle()
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var ytError by remember { mutableStateOf<String?>(null) }
 
     // il video scorre alla velocita' reale del tapis roulant, rispetto a quella di ripresa
@@ -231,6 +244,17 @@ fun ManualTab(vm: TapisViewModel) {
                     ytError?.let { Text("YouTube ha rifiutato il video (codice $it): potrebbe non essere incorporabile.") }
                 }
                 VideoType.NONE, VideoType.ANIMATION -> {}
+            }
+        }
+
+        if (mv.active) {
+            if (landscape && manualDismissed) {
+                OutlinedButton(onClick = { vm.manualFsDismissed.value = false }) { Text("Schermo intero") }
+            } else if (!landscape) {
+                Text(
+                    "Ruota il telefono in orizzontale per vedere il percorso a schermo intero, con dati e comandi.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
 

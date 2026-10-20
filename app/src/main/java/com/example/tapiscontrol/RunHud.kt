@@ -71,7 +71,7 @@ internal fun HudChip(text: String, size: Float = 13f, bold: Boolean = false) {
  * step, tempo al prossimo step, tempo trascorso e rimanente. `scale` ingrandisce i caratteri (schermo intero).
  */
 @Composable
-fun RunHud(d: HudData, modifier: Modifier = Modifier, scale: Float = 1f) {
+fun RunHud(d: HudData, modifier: Modifier = Modifier, scale: Float = 1f, showDistance: Boolean = scale >= 1.2f) {
     val s = 13f * scale
     Box(modifier) {
         Column(
@@ -81,7 +81,7 @@ fun RunHud(d: HudData, modifier: Modifier = Modifier, scale: Float = 1f) {
             HudChip("${fmt(d.speedKmh)} km/h", s * 1.35f, bold = true)
             HudChip("pendenza ${d.inclinePct.toInt()} %", s * 1.1f)
             d.heartRate?.let { HudChip("♥ $it bpm", s * 1.1f, bold = true) }
-            if (scale >= 1.2f) d.distanceM?.let { HudChip("distanza ${"%.2f".format(it / 1000.0)} km", s) }
+            if (showDistance) d.distanceM?.let { HudChip("distanza ${"%.2f".format(it / 1000.0)} km", s) }
         }
         Column(
             Modifier.align(Alignment.BottomStart).padding(8.dp),
