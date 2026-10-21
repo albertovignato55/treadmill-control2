@@ -33,9 +33,21 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     private var stepDelta = 1.0         // ultimo incremento di distanza (m): la "risoluzione" del tapis
     private var stepInterval = 1.5      // ultimo intervallo tra due cambi di distanza (s)
     private var stepSpeed = 0.0
+    private var stepStoppedAt = 0L      // da quando il nastro e' fermo (0 = in movimento)
 
     /** Pubblica i passi: valore alla distanza del tapis + una piccola anticipazione tra due dati (mai oltre un incremento). */
     private fun publishSteps() {
+        // Se il nastro resta fermo per 3 s (Stop), la pausa dei passi si toglie da sola: alla prossima partenza si conta.
+        val nowMs = SystemClock.elapsedRealtime()
+        if (stepSpeed < 0.5) {
+            if (stepStoppedAt == 0L) stepStoppedAt = nowMs
+            else if (nowMs - stepStoppedAt > 3000 && stepsPaused.value) {
+                stepsPaused.value = false
+                stepChangeAt = nowMs
+            }
+        } else {
+            stepStoppedAt = 0L
+        }
         if (stepLastDist == null || stepsPaused.value) return
         var v = stepBase
         if (stepSpeed >= 0.5) {
