@@ -1,4 +1,4 @@
-# Tapis Control (v0.31)
+# Tapis Control (v0.32)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -217,3 +217,9 @@ La compilazione parte da sola nella scheda Actions.
 - **Comandi a schermo intero piu' grandi:** colonna verticale sul lato destro con pulsanti alti 52 dp (Avvia/Pausa, Stop,
   step precedente/successivo, velocita' -0,5/+0,5 e -0,1/+0,1, pendenza -1/+1). "Nascondi" li toglie lasciando solo
   "Comandi" e "Esci"; stessa cosa nello schermo intero della scheda Manuale.
+
+## Novita' v0.32 - Calorie e segni sui comandi
+- **Calorie** (kcal totali dal tapis, FTMS "Expended Energy") tra gli indicatori in alto a sinistra a schermo intero e
+  nei dati dal tapis (Manuale e In corso).
+- Comandi a schermo intero: pulsanti con testo piu' corto (**-** e **+** ben visibili, "Nascondi" non piu' tagliato)
+  e intestazioni "VELOCITA' (km/h)" e "PENDENZA (%)" sopra le coppie di pulsanti.

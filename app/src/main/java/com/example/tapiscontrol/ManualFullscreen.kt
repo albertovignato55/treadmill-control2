@@ -67,6 +67,7 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
         speedKmh = speed,
         inclinePct = live.inclinePct ?: 0.0,
         distanceM = live.distanceM,
+        kcal = live.kcal,
         heartRate = live.heartRate?.takeIf { it > 0 },
         elapsedSec = live.elapsedSec,
     )
@@ -128,21 +129,19 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
                 BigBtn("Start", Modifier.weight(1f), enabled = connected, primary = true) { vm.manualStart() }
                 BigBtn("Stop", Modifier.weight(1f), enabled = connected) { vm.manualStop() }
             }
-            Text(
-                "Obiettivo ${fmt(speedTarget)} km/h · ${fmt(inclineTarget)} %",
-                color = Color.White, fontSize = 14.sp,
-            )
+            Text("VELOCITÀ (km/h) · obiettivo ${fmt(speedTarget)}", color = Color.White, fontSize = 13.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BigBtn("Vel −1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(-1.0) }
-                BigBtn("Vel +1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(1.0) }
+                BigBtn("−1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(-1.0) }
+                BigBtn("+1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(1.0) }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BigBtn("Vel −0,1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(-0.1) }
-                BigBtn("Vel +0,1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(0.1) }
+                BigBtn("−0,1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(-0.1) }
+                BigBtn("+0,1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(0.1) }
             }
+            Text("PENDENZA (%) · obiettivo ${fmt(inclineTarget)}", color = Color.White, fontSize = 13.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BigBtn("Pend −1", Modifier.weight(1f), enabled = connected) { vm.adjustIncline(-1.0) }
-                BigBtn("Pend +1", Modifier.weight(1f), enabled = connected) { vm.adjustIncline(1.0) }
+                BigBtn("−1", Modifier.weight(1f), enabled = connected) { vm.adjustIncline(-1.0) }
+                BigBtn("+1", Modifier.weight(1f), enabled = connected) { vm.adjustIncline(1.0) }
             }
         }
     }

@@ -28,6 +28,7 @@ data class LiveData(
     val distanceM: Int? = null,
     val heartRate: Int? = null,
     val elapsedSec: Int? = null,
+    val kcal: Int? = null,
 )
 
 /** Decodifica la caratteristica "Treadmill Data" (0x2ACD). */
@@ -50,6 +51,7 @@ fun parseTreadmillData(b: ByteArray): LiveData {
     var dist: Int? = null
     var hr: Int? = null
     var elapsed: Int? = null
+    var kcal: Int? = null
     try {
         val flags = u16()
         if ((flags and 0x0001) == 0) speed = u16() / 100.0
@@ -62,12 +64,15 @@ fun parseTreadmillData(b: ByteArray): LiveData {
         if ((flags and 0x0010) != 0) { u16(); u16() }            // dislivello +/-
         if ((flags and 0x0020) != 0) u8()                        // passo istantaneo
         if ((flags and 0x0040) != 0) u8()                        // passo medio
-        if ((flags and 0x0080) != 0) { u16(); u16(); u8() }      // energia
+        if ((flags and 0x0080) != 0) {                           // energia: totale (kcal), per ora, per minuto
+            val e = u16(); u16(); u8()
+            if (e != 0xFFFF) kcal = e
+        }
         if ((flags and 0x0100) != 0) hr = u8()                   // frequenza cardiaca
         if ((flags and 0x0200) != 0) u8()                        // MET
         if ((flags and 0x0400) != 0) elapsed = u16()             // tempo trascorso (s)
     } catch (_: IndexOutOfBoundsException) {
         // pacchetto piu' corto del previsto: tengo quello che ho letto
     }
-    return LiveData(speed, incline, dist, hr, elapsed)
+    return LiveData(speed, incline, dist, hr, elapsed, kcal)
 }

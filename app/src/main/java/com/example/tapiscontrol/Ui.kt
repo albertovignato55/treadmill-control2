@@ -173,6 +173,7 @@ fun LiveCard(l: LiveData) {
             Text("Velocità: ${l.speedKmh?.let { fmt(it) } ?: "–"} km/h")
             Text("Inclinazione: ${l.inclinePct?.let { fmt(it) } ?: "–"} %")
             Text("Distanza: ${l.distanceM ?: "–"} m")
+            Text("Calorie: ${l.kcal ?: "–"} kcal")
             Text("Frequenza cardiaca: ${l.heartRate ?: "–"} bpm")
             Text("Tempo: ${l.elapsedSec?.let { mmss(it) } ?: "–"}")
         }

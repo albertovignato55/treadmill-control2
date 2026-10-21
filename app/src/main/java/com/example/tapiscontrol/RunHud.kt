@@ -20,6 +20,7 @@ data class HudData(
     val speedKmh: Double,
     val inclinePct: Double,
     val distanceM: Int? = null,
+    val kcal: Int? = null,
     val heartRate: Int? = null,
     val caption: String = "",
     val stepRemainingSec: Int? = null,   // tempo allo step successivo (o alla fine, se e' l'ultimo)
@@ -43,6 +44,7 @@ internal fun buildHud(
         speedKmh = live.speedKmh ?: 0.0,
         inclinePct = live.inclinePct ?: 0.0,
         distanceM = live.distanceM,
+        kcal = live.kcal,
         heartRate = live.heartRate?.takeIf { it > 0 },
         caption = if (intervals) "${w.blockNameAt(p.stepIndex)} · step ${p.stepIndex + 1}/${p.stepCount}" else "",
         stepRemainingSec = if (intervals) p.stepRemainingSec else null,
@@ -82,6 +84,7 @@ fun RunHud(d: HudData, modifier: Modifier = Modifier, scale: Float = 1f, showDis
             HudChip("pendenza ${d.inclinePct.toInt()} %", s * 1.1f)
             d.heartRate?.let { HudChip("♥ $it bpm", s * 1.1f, bold = true) }
             if (showDistance) d.distanceM?.let { HudChip("distanza ${"%.2f".format(it / 1000.0)} km", s) }
+            if (showDistance) d.kcal?.let { HudChip("calorie $it kcal", s) }
         }
         Column(
             Modifier.align(Alignment.BottomStart).padding(8.dp),

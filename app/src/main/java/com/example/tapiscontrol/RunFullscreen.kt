@@ -138,7 +138,6 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
                 }
             }
             if (running && !isRoute) {
-                Text("Step ${p.stepIndex + 1}/${p.stepCount}", color = Color.White, fontSize = 14.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BigBtn("⏮ ${(p.stepIndex).coerceAtLeast(1)}", Modifier.weight(1f)) {
                         vm.selectStep((p.stepIndex - 1).coerceAtLeast(0))
@@ -150,17 +149,19 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
             }
             if (running) {
                 val big = if (isRoute) 1.0 else 0.5
+                Text("VELOCITÀ (km/h)", color = Color.White, fontSize = 13.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BigBtn("Vel −${fmt(big)}", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(-big) else vm.adjustIntervalSpeed(-big) }
-                    BigBtn("Vel +${fmt(big)}", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(big) else vm.adjustIntervalSpeed(big) }
+                    BigBtn("−${fmt(big)}", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(-big) else vm.adjustIntervalSpeed(-big) }
+                    BigBtn("+${fmt(big)}", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(big) else vm.adjustIntervalSpeed(big) }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BigBtn("Vel −0,1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(-0.1) else vm.adjustIntervalSpeed(-0.1) }
-                    BigBtn("Vel +0,1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(0.1) else vm.adjustIntervalSpeed(0.1) }
+                    BigBtn("−0,1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(-0.1) else vm.adjustIntervalSpeed(-0.1) }
+                    BigBtn("+0,1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(0.1) else vm.adjustIntervalSpeed(0.1) }
                 }
+                Text("PENDENZA (%)", color = Color.White, fontSize = 13.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BigBtn("Pend −1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustIncline(-1.0) else vm.adjustIntervalIncline(-1.0) }
-                    BigBtn("Pend +1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustIncline(1.0) else vm.adjustIntervalIncline(1.0) }
+                    BigBtn("−1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustIncline(-1.0) else vm.adjustIntervalIncline(-1.0) }
+                    BigBtn("+1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustIncline(1.0) else vm.adjustIntervalIncline(1.0) }
                 }
             }
         }

@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -38,13 +39,14 @@ fun BigBtn(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     primary: Boolean = false,
-    height: Dp = 52.dp,
+    height: Dp = 46.dp,
+    fontSize: TextUnit = 18.sp,
     onClick: () -> Unit,
 ) {
     val m = modifier.height(height)
     if (primary) {
         Button(onClick = onClick, modifier = m, enabled = enabled, contentPadding = BIG_PAD) {
-            Text(text, fontSize = 16.sp, maxLines = 1)
+            Text(text, fontSize = fontSize, maxLines = 1)
         }
     } else {
         OutlinedButton(
@@ -53,7 +55,7 @@ fun BigBtn(
             enabled = enabled,
             contentPadding = BIG_PAD,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-        ) { Text(text, fontSize = 16.sp, maxLines = 1) }
+        ) { Text(text, fontSize = fontSize, maxLines = 1) }
     }
 }
 
@@ -73,7 +75,7 @@ fun BoxScope.SidePanel(
             Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .width(230.dp)
+                .width(240.dp)
                 .background(Color(0xB3000000))
                 .windowInsetsPadding(WindowInsets.displayCutout)
                 .verticalScroll(rememberScrollState())
@@ -81,8 +83,8 @@ fun BoxScope.SidePanel(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BigBtn("Nascondi", Modifier.weight(1f), height = 44.dp, onClick = onToggle)
-                BigBtn("✕ Esci", Modifier.weight(1f), height = 44.dp, onClick = onExit)
+                BigBtn("Nascondi", Modifier.weight(1.25f), height = 40.dp, fontSize = 13.sp, onClick = onToggle)
+                BigBtn("✕ Esci", Modifier.weight(1f), height = 40.dp, fontSize = 13.sp, onClick = onExit)
             }
             content()
         }
@@ -91,8 +93,8 @@ fun BoxScope.SidePanel(
             Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.displayCutout).padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            BigBtn("Comandi", Modifier.width(130.dp), height = 44.dp, onClick = onToggle)
-            BigBtn("✕ Esci", Modifier.width(130.dp), height = 44.dp, onClick = onExit)
+            BigBtn("Comandi", Modifier.width(130.dp), height = 40.dp, fontSize = 14.sp, onClick = onToggle)
+            BigBtn("✕ Esci", Modifier.width(130.dp), height = 40.dp, fontSize = 14.sp, onClick = onExit)
         }
     }
 }
