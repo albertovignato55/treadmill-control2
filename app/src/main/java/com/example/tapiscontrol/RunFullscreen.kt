@@ -59,6 +59,7 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
     val routeMsg by vm.routeMessage.collectAsStateWithLifecycle()
     val startStep by vm.startStep.collectAsStateWithLifecycle()
     val stepsEst by vm.stepsEst.collectAsStateWithLifecycle()
+    val stepsPaused by vm.stepsPaused.collectAsStateWithLifecycle()
     var showControls by rememberSaveable { mutableStateOf(true) }
     var ytError by remember(w.id) { mutableStateOf<String?>(null) }
 
@@ -70,7 +71,7 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
     val ref = w.video.refSpeedKmh
     val rate = if (speed >= 0.5) ((speed / ref) * 20).roundToInt() / 20f else 1f
     val steps = remember(w) { w.flatSteps() }
-    val hud = buildHud(w, p, live, isRoute, steps, stepsEst)
+    val hud = buildHud(w, p, live, isRoute, steps, stepsEst, stepsPaused)
     val message = if (isRoute) routeMsg else p.message
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -158,6 +159,10 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
                         ) { Text(if (paused) "Riprendi" else "Pausa", fontSize = 12.sp) }
                         SmallOutlined("Stop") { if (isRoute) vm.stopRoute() else vm.runner.stop() }
                     }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SmallOutlined(if (stepsPaused) "▶ Riprendi passi" else "⏸ Pausa passi") { vm.toggleStepsPause() }
+                    SmallOutlined("Azzera passi") { vm.resetSteps() }
                 }
                 if (running && !isRoute) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

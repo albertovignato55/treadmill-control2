@@ -212,8 +212,8 @@ class WorkoutStore(ctx: Context) {
         prefs.edit().putString("blocklib", a.toString()).apply()
     }
 
-    fun loadStepCal(): StepCal = StepCal(prefs.getInt("steplen4", 64), prefs.getInt("steplen5", 76))
-    fun saveStepCal(c: StepCal) = prefs.edit().putInt("steplen4", c.cm4).putInt("steplen5", c.cm5).apply()
+    fun loadStepCal(): StepCal = StepCal(prefs.getInt("steplen3", 50), prefs.getInt("steplen4", 64), prefs.getInt("steplen5", 76))
+    fun saveStepCal(c: StepCal) = prefs.edit().putInt("steplen3", c.cm3).putInt("steplen4", c.cm4).putInt("steplen5", c.cm5).apply()
 
     fun loadMaxSpeed(): Double = prefs.getFloat("max", 8f).toDouble()
     fun saveMaxSpeed(v: Double) = prefs.edit().putFloat("max", v.toFloat()).apply()

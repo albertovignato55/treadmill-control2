@@ -560,6 +560,7 @@ fun RunTab(vm: TapisViewModel) {
     val startStep by vm.startStep.collectAsStateWithLifecycle()
     val fsDismissed by vm.fsDismissed.collectAsStateWithLifecycle()
     val stepsEst by vm.stepsEst.collectAsStateWithLifecycle()
+    val stepsPaused by vm.stepsPaused.collectAsStateWithLifecycle()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val ctx = LocalContext.current
     val w = workouts.firstOrNull { it.id == activeId }
@@ -582,7 +583,7 @@ fun RunTab(vm: TapisViewModel) {
             val playing = running && !paused && speed >= 0.5
             val ref = w.video.refSpeedKmh
             val rate = if (speed >= 0.5) ((speed / ref) * 20).roundToInt() / 20f else 1f
-            val hud = buildHud(w, p, live, isRoute, remember(w) { w.flatSteps() }, stepsEst)
+            val hud = buildHud(w, p, live, isRoute, remember(w) { w.flatSteps() }, stepsEst, stepsPaused)
 
             if (w.video.type == VideoType.ANIMATION) {
                 AnimatedRoute(
@@ -644,6 +645,7 @@ fun RunTab(vm: TapisViewModel) {
             }
 
             LiveCard(live, stepsEst)
+            StepControls(vm)
 
             if (isRoute) {
                 RouteControls(vm, w, connected)

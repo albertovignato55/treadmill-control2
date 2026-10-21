@@ -184,6 +184,15 @@ fun ConnectionTab(vm: TapisViewModel, onScan: () -> Unit) {
 
 // ------------------------------------------------------------------ Manuale
 @Composable
+fun StepControls(vm: TapisViewModel) {
+    val paused by vm.stepsPaused.collectAsStateWithLifecycle()
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { vm.toggleStepsPause() }) { Text(if (paused) "▶ Riprendi passi" else "⏸ Pausa passi") }
+        OutlinedButton(onClick = { vm.resetSteps() }) { Text("Azzera passi") }
+    }
+}
+
+@Composable
 fun LiveCard(l: LiveData, steps: Int? = null) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
@@ -280,6 +289,7 @@ fun ManualTab(vm: TapisViewModel) {
         }
 
         LiveCard(live, stepsEst)
+        StepControls(vm)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { vm.manualStart() }, enabled = connected) { Text("Start") }
@@ -326,21 +336,27 @@ fun ManualTab(vm: TapisViewModel) {
             valueRange = 0f..15f,
         )
 
+        Text("Passo a 3 km/h: ${cal.cm3} cm", style = MaterialTheme.typography.titleSmall)
+        Slider(
+            value = cal.cm3.toFloat(),
+            onValueChange = { vm.setStepCal(it.roundToInt(), cal.cm4, cal.cm5) },
+            valueRange = 35f..100f,
+        )
         Text("Passo a 4 km/h: ${cal.cm4} cm", style = MaterialTheme.typography.titleSmall)
         Slider(
             value = cal.cm4.toFloat(),
-            onValueChange = { vm.setStepCal(it.roundToInt(), cal.cm5) },
+            onValueChange = { vm.setStepCal(cal.cm3, it.roundToInt(), cal.cm5) },
             valueRange = 40f..110f,
         )
         Text("Passo a 5 km/h: ${cal.cm5} cm", style = MaterialTheme.typography.titleSmall)
         Slider(
             value = cal.cm5.toFloat(),
-            onValueChange = { vm.setStepCal(cal.cm4, it.roundToInt()) },
+            onValueChange = { vm.setStepCal(cal.cm3, cal.cm4, it.roundToInt()) },
             valueRange = 40f..120f,
         )
         Text(
             "Il tapis non conta i passi: l'app li stima dalla distanza, con la lunghezza del passo che cambia con la " +
-                "velocita' (interpolata tra questi due valori). Per tararli: a 4 e a 5 km/h conta i passi in 1 minuto " +
+                "velocita' (interpolata tra questi valori). Per tararli: a 3, 4 e 5 km/h conta i passi in 1 minuto " +
                 "(entrambi i piedi) e calcola metri al minuto / passi al minuto.",
             style = MaterialTheme.typography.bodySmall,
         )

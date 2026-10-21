@@ -57,6 +57,7 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
     val speedTarget by vm.manualSpeed.collectAsStateWithLifecycle()
     val inclineTarget by vm.manualIncline.collectAsStateWithLifecycle()
     val stepsEst by vm.stepsEst.collectAsStateWithLifecycle()
+    val stepsPaused by vm.stepsPaused.collectAsStateWithLifecycle()
     var showControls by rememberSaveable { mutableStateOf(true) }
     var ytError by remember(mv.source) { mutableStateOf<String?>(null) }
 
@@ -70,6 +71,7 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
         heartRate = live.heartRate?.takeIf { it > 0 },
         elapsedSec = live.elapsedSec,
         steps = stepsEst,
+        stepsPaused = stepsPaused,
     )
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -146,6 +148,10 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Button(onClick = { vm.manualStart() }, enabled = connected, contentPadding = MPAD, modifier = Modifier.height(32.dp)) { Text("Start", fontSize = 12.sp) }
                     MBtn("Stop", enabled = connected) { vm.manualStop() }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    MBtn(if (stepsPaused) "▶ Riprendi passi" else "⏸ Pausa passi") { vm.toggleStepsPause() }
+                    MBtn("Azzera passi") { vm.resetSteps() }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Velocità ${fmt(speedTarget)} km/h", color = Color.White, fontSize = 12.sp)

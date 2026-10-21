@@ -23,8 +23,9 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     val editingId = MutableStateFlow<Long?>(null)   // allenamento aperto nell'editor
     val activeId = MutableStateFlow<Long?>(null)    // allenamento in corso / selezionato
     val maxSpeed = MutableStateFlow(store.loadMaxSpeed())
-    val stepCal = MutableStateFlow(store.loadStepCal())   // taratura della lunghezza del passo (4 e 5 km/h)
+    val stepCal = MutableStateFlow(store.loadStepCal())   // taratura della lunghezza del passo (3, 4 e 5 km/h)
     val stepsEst = MutableStateFlow<Int?>(null)           // passi stimati dall'ultimo azzeramento del tapis
+    val stepsPaused = MutableStateFlow(false)             // true = i passi sono congelati (sceso dal nastro)
     private var stepBase = 0.0          // passi alla distanza segnata dal tapis (frazionari)
     private var stepShown = 0           // ultimo valore pubblicato (non scende mai, salvo azzeramento)
     private var stepLastDist: Int? = null
@@ -35,7 +36,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pubblica i passi: valore alla distanza del tapis + una piccola anticipazione tra due dati (mai oltre un incremento). */
     private fun publishSteps() {
-        if (stepLastDist == null) return
+        if (stepLastDist == null || stepsPaused.value) return
         var v = stepBase
         if (stepSpeed >= 0.5) {
             val dt = (SystemClock.elapsedRealtime() - stepChangeAt) / 1000.0
@@ -45,6 +46,20 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         val r = v.roundToInt()
         if (r > stepShown) stepShown = r
         stepsEst.value = stepShown
+    }
+
+    /** Pausa/ripresa del conteggio (il tapis non dice se sei sceso dal nastro: lo decidi tu). */
+    fun toggleStepsPause() {
+        val p = !stepsPaused.value
+        stepsPaused.value = p
+        if (!p) stepChangeAt = SystemClock.elapsedRealtime()
+    }
+
+    fun resetSteps() {
+        stepBase = 0.0
+        stepShown = 0
+        stepChangeAt = SystemClock.elapsedRealtime()
+        if (stepLastDist != null) stepsEst.value = 0
     }
 
     /** Un nuovo dato di distanza dal tapis: i passi seguono SEMPRE la distanza del tapis (che e' quella che conta). */
@@ -63,7 +78,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (d == prev) return
-        stepBase += (d - prev) / stride
+        if (!stepsPaused.value) stepBase += (d - prev) / stride
         stepDelta = (d - prev).toDouble()
         stepInterval = ((now - stepChangeAt) / 1000.0).coerceIn(0.5, 10.0)
         stepChangeAt = now
@@ -451,8 +466,8 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         ble.setIncline(target)
     }
 
-    fun setStepCal(cm4: Int, cm5: Int) {
-        val c = StepCal(cm4.coerceIn(40, 110), cm5.coerceIn(40, 120))
+    fun setStepCal(cm3: Int, cm4: Int, cm5: Int) {
+        val c = StepCal(cm3.coerceIn(35, 100), cm4.coerceIn(40, 110), cm5.coerceIn(40, 120))
         stepCal.value = c
         store.saveStepCal(c)
     }
