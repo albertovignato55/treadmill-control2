@@ -157,6 +157,24 @@ fun ConnectionTab(vm: TapisViewModel, onScan: () -> Unit) {
                 }
             }
         }
+        item {
+            val svc by ble.services.collectAsStateWithLifecycle()
+            val raw by ble.raw.collectAsStateWithLifecycle()
+            if (svc.isNotEmpty()) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Diagnostica Bluetooth (per cercare i passi del tapis)", style = MaterialTheme.typography.titleSmall)
+                        raw.forEach { (k, v) ->
+                            Text("$k: $v", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                        }
+                        Text("Servizi:", style = MaterialTheme.typography.bodySmall)
+                        svc.forEach {
+                            Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+            }
+        }
         item { Text("Log", style = MaterialTheme.typography.titleSmall) }
         items(log.takeLast(60).reversed()) {
             Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
