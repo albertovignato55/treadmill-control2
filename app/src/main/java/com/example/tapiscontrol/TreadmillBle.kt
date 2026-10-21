@@ -42,8 +42,6 @@ class TreadmillBle(private val context: Context) {
     val speedRange = MutableStateFlow<ClosedFloatingPointRange<Double>?>(null)
     val inclineRange = MutableStateFlow<ClosedFloatingPointRange<Double>?>(null)
     val log = MutableStateFlow<List<String>>(emptyList())
-    val services = MutableStateFlow<List<String>>(emptyList())     // diagnostica: servizi e caratteristiche del tapis
-    val raw = MutableStateFlow<Map<String, String>>(emptyMap())     // diagnostica: ultimi byte ricevuti per caratteristica
 
     private var gatt: BluetoothGatt? = null
     private var controlPoint: BluetoothGattCharacteristic? = null
@@ -130,16 +128,6 @@ class TreadmillBle(private val context: Context) {
         }
 
         override fun onServicesDiscovered(g: BluetoothGatt, st: Int) {
-            // diagnostica: tutti i servizi e le caratteristiche del tapis (per cercare un eventuale conteggio passi)
-            raw.value = emptyMap()
-            services.value = buildList {
-                g.services.forEach { sv ->
-                    add("Servizio ${shortUuid(sv.uuid)}")
-                    sv.characteristics.forEach { ch ->
-                        add("   car. ${shortUuid(ch.uuid)} props=0x${ch.properties.toString(16)}")
-                    }
-                }
-            }
             val svc = g.getService(Ftms.SERVICE)
             if (svc == null) {
                 addLog("Servizio FTMS 0x1826 NON trovato")
@@ -158,17 +146,6 @@ class TreadmillBle(private val context: Context) {
             controlPoint?.let { c -> enqueue { enableCccd(c, indicate = true) } }
             svc.getCharacteristic(Ftms.TREADMILL_DATA)?.let { c -> enqueue { enableCccd(c, indicate = false) } }
             enqueue { writeCp(byteArrayOf(Ftms.OP_REQUEST_CONTROL.toByte())) }
-
-            // diagnostica: ascolto (in sola lettura) anche le notifiche degli altri servizi del tapis
-            g.services.filter { !shortUuid(it.uuid).let { u -> u == "1800" || u == "1801" } }
-                .forEach { sv ->
-                    sv.characteristics.forEach { ch ->
-                        if (ch.uuid == Ftms.TREADMILL_DATA || ch.uuid == Ftms.CONTROL_POINT) return@forEach
-                        val notify = (ch.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0
-                        val indicate = (ch.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
-                        if (notify || indicate) enqueue { enableCccd(ch, indicate = !notify) }
-                    }
-                }
 
             connected.value = true
             status.value = "Pronto"
@@ -230,24 +207,7 @@ class TreadmillBle(private val context: Context) {
         }
     }
 
-    private val lastRawLog = HashMap<UUID, Long>()
-
-    private fun shortUuid(u: UUID): String {
-        val t = u.toString()
-        return if (t.endsWith("-0000-1000-8000-00805f9b34fb")) t.substring(4, 8) else t
-    }
-
-    /** Tiene l'ultimo pacchetto ricevuto da ogni caratteristica (aggiornato al massimo una volta al secondo). */
-    private fun logRaw(uuid: UUID, v: ByteArray) {
-        val now = SystemClock.elapsedRealtime()
-        if (now - (lastRawLog[uuid] ?: 0L) < 1000) return
-        lastRawLog[uuid] = now
-        val hex = v.joinToString(" ") { "%02x".format(it.toInt() and 0xFF) }
-        raw.update { it + (shortUuid(uuid) to hex) }
-    }
-
     private fun handleChanged(uuid: UUID, v: ByteArray) {
-        if (uuid != Ftms.CONTROL_POINT) logRaw(uuid, v)
         when (uuid) {
             Ftms.TREADMILL_DATA -> live.value = parseTreadmillData(v)
             Ftms.CONTROL_POINT -> {
@@ -400,7 +360,7 @@ class TreadmillBle(private val context: Context) {
     private var inclineReached = false
     private var enforcerPosted = false
 
-    private fun clearWanted() { wantSpeed = null; wantIncline = null }
+    fun clearWanted() { wantSpeed = null; wantIncline = null }
 
     private fun ensureEnforcer() {
         if (enforcerPosted) return

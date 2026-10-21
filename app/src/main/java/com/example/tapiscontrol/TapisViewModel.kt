@@ -23,78 +23,6 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     val editingId = MutableStateFlow<Long?>(null)   // allenamento aperto nell'editor
     val activeId = MutableStateFlow<Long?>(null)    // allenamento in corso / selezionato
     val maxSpeed = MutableStateFlow(store.loadMaxSpeed())
-    val stepCal = MutableStateFlow(store.loadStepCal())   // taratura della lunghezza del passo (3, 4 e 5 km/h)
-    val stepsEst = MutableStateFlow<Int?>(null)           // passi stimati dall'ultimo azzeramento del tapis
-    val stepsPaused = MutableStateFlow(false)             // true = i passi sono congelati (sceso dal nastro)
-    private var stepBase = 0.0          // passi alla distanza segnata dal tapis (frazionari)
-    private var stepShown = 0           // ultimo valore pubblicato (non scende mai, salvo azzeramento)
-    private var stepLastDist: Int? = null
-    private var stepChangeAt = 0L       // quando la distanza e' cambiata l'ultima volta
-    private var stepDelta = 1.0         // ultimo incremento di distanza (m): la "risoluzione" del tapis
-    private var stepInterval = 1.5      // ultimo intervallo tra due cambi di distanza (s)
-    private var stepSpeed = 0.0
-    private var stepStoppedAt = 0L      // da quando il nastro e' fermo (0 = in movimento)
-
-    /** Pubblica i passi: valore alla distanza del tapis + una piccola anticipazione tra due dati (mai oltre un incremento). */
-    private fun publishSteps() {
-        // Se il nastro resta fermo per 3 s (Stop), la pausa dei passi si toglie da sola: alla prossima partenza si conta.
-        val nowMs = SystemClock.elapsedRealtime()
-        if (stepSpeed < 0.5) {
-            if (stepStoppedAt == 0L) stepStoppedAt = nowMs
-            else if (nowMs - stepStoppedAt > 3000 && stepsPaused.value) {
-                stepsPaused.value = false
-                stepChangeAt = nowMs
-            }
-        } else {
-            stepStoppedAt = 0L
-        }
-        if (stepLastDist == null || stepsPaused.value) return
-        var v = stepBase
-        if (stepSpeed >= 0.5) {
-            val dt = (SystemClock.elapsedRealtime() - stepChangeAt) / 1000.0
-            val extraM = minOf(stepSpeed / 3.6 * dt, stepDelta, stepSpeed / 3.6 * stepInterval)
-            v += extraM / stepCal.value.strideM(stepSpeed)
-        }
-        val r = v.roundToInt()
-        if (r > stepShown) stepShown = r
-        stepsEst.value = stepShown
-    }
-
-    /** Pausa/ripresa del conteggio (il tapis non dice se sei sceso dal nastro: lo decidi tu). */
-    fun toggleStepsPause() {
-        val p = !stepsPaused.value
-        stepsPaused.value = p
-        if (!p) stepChangeAt = SystemClock.elapsedRealtime()
-    }
-
-    fun resetSteps() {
-        stepBase = 0.0
-        stepShown = 0
-        stepChangeAt = SystemClock.elapsedRealtime()
-        if (stepLastDist != null) stepsEst.value = 0
-    }
-
-    /** Un nuovo dato di distanza dal tapis: i passi seguono SEMPRE la distanza del tapis (che e' quella che conta). */
-    private fun syncSteps(d: Int) {
-        val now = SystemClock.elapsedRealtime()
-        val stride = stepCal.value.strideM(if (stepSpeed > 0.0) stepSpeed else 4.0)
-        val prev = stepLastDist
-        stepLastDist = d
-        if (prev == null || d < prev) {                  // primo dato o tapis azzerato
-            stepBase = d / stride
-            stepShown = stepBase.roundToInt()
-            stepChangeAt = now
-            stepDelta = 1.0
-            stepInterval = 1.5
-            stepsEst.value = stepShown
-            return
-        }
-        if (d == prev) return
-        if (!stepsPaused.value) stepBase += (d - prev) / stride
-        stepDelta = (d - prev).toDouble()
-        stepInterval = ((now - stepChangeAt) / 1000.0).coerceIn(0.5, 10.0)
-        stepChangeAt = now
-    }
     val maxIncline = MutableStateFlow(store.loadMaxIncline())
 
     // video della scheda Manuale (indipendente dagli allenamenti)
@@ -117,23 +45,6 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         // limiti applicati a ogni comando direttamente nel modulo Bluetooth
         ble.speedLimit = maxSpeed.value
         ble.inclineLimit = maxIncline.value
-
-        // Passi stimati: seguono la distanza segnata dal tapis (se scendi dalla pedana e il tapis ferma il conto, si
-        // fermano anche loro). Tra un dato e l'altro avanzano un poco in base alla velocita', senza superare un
-        // incremento di distanza. La lunghezza del passo dipende dalla velocita'.
-        viewModelScope.launch {
-            ble.live.collect { l ->
-                stepSpeed = l.speedKmh ?: 0.0
-                l.distanceM?.let { syncSteps(it) }
-                publishSteps()
-            }
-        }
-        viewModelScope.launch {
-            while (true) {
-                delay(200)
-                publishSteps()
-            }
-        }
 
         // Se si lascia la scheda "In corso" il lettore video viene chiuso: il video "scorre" comunque in modo
         // virtuale alla velocita' reale del tapis roulant, cosi' il profilo del percorso resta allineato e
@@ -376,7 +287,38 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
             ble.setSpeed(routeSpeed.value)
             ble.setIncline(inc0)
             routeMessage.value = ""
-            while (ble.connected.value) delay(1000)
+            var stoppedTicks = 0
+            var movingTicks = 0
+            var pausedExternally = false
+            while (ble.connected.value) {
+                delay(1000)
+                val sp = ble.live.value.speedKmh
+                if (!routePaused.value) {
+                    pausedExternally = false
+                    // nastro fermato dalla console o dalla chiave: il percorso si mette in pausa da solo
+                    if (sp != null && sp < 0.3) stoppedTicks++ else stoppedTicks = 0
+                    if (stoppedTicks >= 3) {
+                        stoppedTicks = 0
+                        pausedExternally = true
+                        ble.clearWanted()
+                        routePaused.value = true
+                    }
+                } else if (pausedExternally) {
+                    // il nastro riparte (START della console...): riprendo rimandando velocita' e pendenza
+                    if (sp != null && sp >= 0.5) movingTicks++ else movingTicks = 0
+                    if (movingTicks >= 2) {
+                        movingTicks = 0
+                        pausedExternally = false
+                        routePaused.value = false
+                        ble.requestControl()
+                        delay(500)
+                        ble.setSpeed(routeSpeed.value)
+                        ble.setIncline(routeIncline.value)
+                    }
+                } else {
+                    movingTicks = 0
+                }
+            }
             routeRunning.value = false
             routeMessage.value = "Connessione persa! Il tapis roulant mantiene l'ultima velocita': " +
                 "fermalo con la chiave di sicurezza."
@@ -476,12 +418,6 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         lastInclineSentMs = now
         routeIncline.value = target
         ble.setIncline(target)
-    }
-
-    fun setStepCal(cm3: Int, cm4: Int, cm5: Int) {
-        val c = StepCal(cm3.coerceIn(35, 100), cm4.coerceIn(40, 110), cm5.coerceIn(40, 120))
-        stepCal.value = c
-        store.saveStepCal(c)
     }
 
     fun setMaxSpeed(v: Double) {

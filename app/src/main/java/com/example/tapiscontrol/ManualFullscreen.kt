@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,8 +57,6 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
     val connected by vm.ble.connected.collectAsStateWithLifecycle()
     val speedTarget by vm.manualSpeed.collectAsStateWithLifecycle()
     val inclineTarget by vm.manualIncline.collectAsStateWithLifecycle()
-    val stepsEst by vm.stepsEst.collectAsStateWithLifecycle()
-    val stepsPaused by vm.stepsPaused.collectAsStateWithLifecycle()
     var showControls by rememberSaveable { mutableStateOf(true) }
     var ytError by remember(mv.source) { mutableStateOf<String?>(null) }
 
@@ -70,8 +69,6 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
         distanceM = live.distanceM,
         heartRate = live.heartRate?.takeIf { it > 0 },
         elapsedSec = live.elapsedSec,
-        steps = stepsEst,
-        stepsPaused = stepsPaused,
     )
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -126,45 +123,26 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
             }
         }
 
-        Row(
-            Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.displayCutout).padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            MBtn(if (showControls) "Nascondi comandi" else "Comandi") { showControls = !showControls }
-            MBtn("✕ Esci") { onExit() }
-        }
-
-        if (showControls) {
-            Column(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .windowInsetsPadding(WindowInsets.displayCutout)
-                    .padding(8.dp)
-                    .background(Color(0xAA000000), RoundedCornerShape(12.dp))
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalAlignment = Alignment.End,
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button(onClick = { vm.manualStart() }, enabled = connected, contentPadding = MPAD, modifier = Modifier.height(32.dp)) { Text("Start", fontSize = 12.sp) }
-                    MBtn("Stop", enabled = connected) { vm.manualStop() }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MBtn(if (stepsPaused) "▶ Riprendi passi" else "⏸ Pausa passi") { vm.toggleStepsPause() }
-                    MBtn("Azzera passi") { vm.resetSteps() }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Velocità ${fmt(speedTarget)} km/h", color = Color.White, fontSize = 12.sp)
-                    MBtn("−1", connected) { vm.adjustSpeed(-1.0) }
-                    MBtn("−0,1", connected) { vm.adjustSpeed(-0.1) }
-                    MBtn("+0,1", connected) { vm.adjustSpeed(0.1) }
-                    MBtn("+1", connected) { vm.adjustSpeed(1.0) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Pendenza ${fmt(inclineTarget)} %", color = Color.White, fontSize = 12.sp)
-                    MBtn("−1 %", connected) { vm.adjustIncline(-1.0) }
-                    MBtn("+1 %", connected) { vm.adjustIncline(1.0) }
-                }
+        SidePanel(showControls, onToggle = { showControls = !showControls }, onExit = onExit) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BigBtn("Start", Modifier.weight(1f), enabled = connected, primary = true) { vm.manualStart() }
+                BigBtn("Stop", Modifier.weight(1f), enabled = connected) { vm.manualStop() }
+            }
+            Text(
+                "Obiettivo ${fmt(speedTarget)} km/h · ${fmt(inclineTarget)} %",
+                color = Color.White, fontSize = 14.sp,
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BigBtn("Vel −1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(-1.0) }
+                BigBtn("Vel +1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(1.0) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BigBtn("Vel −0,1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(-0.1) }
+                BigBtn("Vel +0,1", Modifier.weight(1f), enabled = connected) { vm.adjustSpeed(0.1) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BigBtn("Pend −1", Modifier.weight(1f), enabled = connected) { vm.adjustIncline(-1.0) }
+                BigBtn("Pend +1", Modifier.weight(1f), enabled = connected) { vm.adjustIncline(1.0) }
             }
         }
     }

@@ -1,4 +1,4 @@
-# Tapis Control (v0.30)
+# Tapis Control (v0.31)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -207,59 +207,13 @@ La compilazione parte da sola nella scheda Actions.
 - Il tempo al prossimo step ("Prossimo step tra mm:ss (km/h - %)", oppure "Fine allenamento tra" all'ultimo) e'
   ora in grassetto e piu' grande; il tempo "Totale trascorso" e il "Rimane" sono sulla stessa riga in basso a sinistra.
 
-## Novita' v0.21 - Conteggio dei passi
-- Il tapis (FTMS) non invia i passi: l'app li **stima** = distanza / lunghezza del passo.
-- Lunghezza del passo regolabile (40-110 cm, default 70) con uno slider nella scheda *Manuale*, sotto i limiti.
-- "Passi (stima)" compare nei dati dal tapis (Manuale e In corso) e nello schermo intero (In corso e Manuale).
-- Negli allenamenti a intervalli, l'elenco e i dettagli mostrano durata, km e passi previsti.
-
-## Novita' v0.22 - Passo che dipende dalla velocita'
-- Due tarature nella scheda *Manuale*: passo a 4 km/h (default 64 cm) e a 5 km/h (default 76 cm); le altre velocita'
-  si ricavano per interpolazione/estrapolazione (limitata tra 2 e 8 km/h).
-- I passi si accumulano metro per metro con la lunghezza del passo della velocita' del momento (si azzerano
-  quando il tapis azzera la distanza). Le stime dei passi previsti negli allenamenti usano lo stesso criterio.
-
-## Novita' v0.23 - Passi piu' fluidi
-- Il tapis invia la distanza a metri interi e a intervalli: il contatore dei passi saliva a scatti. Ora tra un dato e
-  l'altro avanza in base alla velocita' reale (al massimo 1 m) e si riallinea al valore esatto appena arriva,
-  senza mai tornare indietro.
-
-## Novita' v0.24 - Passi in tempo reale
-- I passi non dipendono piu' dall'arrivo dei dati di distanza (metri interi, a intervalli lunghi): il conteggio
-  avanza di continuo (ogni 0,2 s) in base alla velocita' reale e alla lunghezza del passo a quella velocita'.
-- Ogni nuovo dato di distanza dal tapis corregge la stima dolcemente (25 % dell'errore); se la stima si discosta
-  di oltre 6 m si riallinea. Il contatore non scende mai, salvo quando il tapis azzera la distanza.
-
-## Novita' v0.25 - Passi agganciati alla distanza del tapis
-- Correzione della v0.24: i passi tornano a seguire la distanza segnata dal tapis (se il tapis ferma il conto, per
-  esempio quando si scende dalla pedana, si fermano anche i passi).
-- Tra un dato e l'altro avanzano solo un po' in base alla velocita', e mai oltre un incremento di distanza (l'app
-  impara la risoluzione e l'intervallo con cui il tapis aggiorna la distanza).
-
-## Novita' v0.26 - Diagnostica Bluetooth (ricerca del contapassi del tapis)
-- Il tapis sembra avere un proprio conteggio dei passi (sulla console si ferma quando si scende dalla pedana), ma la
-  distanza FTMS continua ad aumentare. Questa versione mostra, nella scheda *Connessione* (dopo aver connesso):
-  tutti i servizi e le caratteristiche Bluetooth del tapis e gli ultimi byte ricevuti da ciascuna (anche dai
-  servizi diversi da FTMS, ascoltati solo in lettura).
-- Serve solo a capire dove il tapis pubblica i passi; i comandi e le altre funzioni non cambiano.
-
-## Novita' v0.27 - Diagnostica: ascolto anche delle caratteristiche dentro FTMS
-- Nella v0.26 non venivano ascoltate le caratteristiche notificabili del servizio FTMS oltre a Treadmill Data:
-  Training Status (2AD3), Machine Status (2ADA) e una caratteristica del produttore
-  (3e331796-2f99-94c9-b6db-8fe244d00580, scrittura+notifica). Ora si ascoltano e il riquadro "Diagnostica
-  Bluetooth" ne mostra i byte.
-
-## Novita' v0.28 - Taratura del passo a tre velocita'
-- Terzo punto di taratura: passo a 3 km/h (default 50 cm, da 100 passi/min misurati), oltre a 4 km/h (64 cm) e
-  5 km/h (76 cm). La lunghezza del passo e' interpolata a tratti tra i tre punti.
-
-## Novita' v0.29 - Pausa e azzera passi
-- Il tapis non comunica quando si scende dal nastro (il suo contapassi e' interno alla console e non e' raggiungibile
-  via Bluetooth), quindi il conteggio dei passi ha due pulsanti: **Pausa passi / Riprendi passi** e **Azzera passi**.
-- Sono nelle schede *Manuale* e *In corso*, sotto i dati del tapis, e nel pannello comandi dello schermo intero
-  (Manuale e In corso). In pausa il contatore si ferma (a schermo intero compare un simbolo di pausa); alla ripresa
-  riparte da dove era, senza contare i metri percorsi nel frattempo.
-
-## Novita' v0.30 - La pausa dei passi si toglie da sola allo Stop
-- Quando il nastro resta fermo per piu' di 3 secondi (per esempio dopo Stop), la "Pausa passi" si disattiva da sola,
-  cosi' alla partenza successiva i passi si contano senza dover premere "Riprendi". Il conteggio non si azzera.
+## Novita' v0.31 - Via il contapassi, pausa dalla console, comandi grandi
+- **Contapassi rimosso** (stima non affidabile; il tapis non li invia via Bluetooth). Questa versione riparte dalla
+  v0.20: tolti anche i passi previsti, la taratura del passo e la diagnostica Bluetooth.
+- **Pausa dalla console / chiave di sicurezza:** se durante un allenamento (a step o percorso) il nastro resta fermo per
+  3 secondi, l'app mette l'allenamento in pausa da sola (compare "Riprendi"). Se poi il nastro riparte (START della
+  console, Start dell'app) l'allenamento riprende da solo rimandando velocita' e pendenza dello step; oppure si puo'
+  premere "Riprendi" nell'app.
+- **Comandi a schermo intero piu' grandi:** colonna verticale sul lato destro con pulsanti alti 52 dp (Avvia/Pausa, Stop,
+  step precedente/successivo, velocita' -0,5/+0,5 e -0,1/+0,1, pendenza -1/+1). "Nascondi" li toglie lasciando solo
+  "Comandi" e "Esci"; stessa cosa nello schermo intero della scheda Manuale.

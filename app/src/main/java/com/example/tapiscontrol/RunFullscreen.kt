@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,8 +59,6 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
     val routePaused by vm.routePaused.collectAsStateWithLifecycle()
     val routeMsg by vm.routeMessage.collectAsStateWithLifecycle()
     val startStep by vm.startStep.collectAsStateWithLifecycle()
-    val stepsEst by vm.stepsEst.collectAsStateWithLifecycle()
-    val stepsPaused by vm.stepsPaused.collectAsStateWithLifecycle()
     var showControls by rememberSaveable { mutableStateOf(true) }
     var ytError by remember(w.id) { mutableStateOf<String?>(null) }
 
@@ -71,7 +70,7 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
     val ref = w.video.refSpeedKmh
     val rate = if (speed >= 0.5) ((speed / ref) * 20).roundToInt() / 20f else 1f
     val steps = remember(w) { w.flatSteps() }
-    val hud = buildHud(w, p, live, isRoute, steps, stepsEst, stepsPaused)
+    val hud = buildHud(w, p, live, isRoute, steps)
     val message = if (isRoute) routeMsg else p.message
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -124,67 +123,44 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
             ) { HudChip(note, 14f) }
         }
 
-        Row(
-            Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.displayCutout).padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            SmallOutlined(if (showControls) "Nascondi comandi" else "Comandi") { showControls = !showControls }
-            SmallOutlined("✕ Esci") { onExit() }
-        }
-
-        if (showControls) {
-            Column(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .windowInsetsPadding(WindowInsets.displayCutout)
-                    .padding(8.dp)
-                    .background(Color(0xAA000000), RoundedCornerShape(12.dp))
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalAlignment = Alignment.End,
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (!running) {
-                        Button(
-                            onClick = { if (isRoute) vm.startRoute(w.id) else vm.startWorkout(w.id, startStep) },
-                            enabled = connected,
-                            modifier = Modifier.height(32.dp),
-        contentPadding = BTN_PAD,
-                        ) { Text(if (!isRoute && startStep > 0) "Avvia dallo step ${startStep + 1}" else "Avvia", fontSize = 12.sp) }
-                    } else {
-                        Button(
-                            onClick = { if (isRoute) vm.routePauseResume() else vm.runner.pauseResume() },
-                            modifier = Modifier.height(32.dp),
-        contentPadding = BTN_PAD,
-                        ) { Text(if (paused) "Riprendi" else "Pausa", fontSize = 12.sp) }
-                        SmallOutlined("Stop") { if (isRoute) vm.stopRoute() else vm.runner.stop() }
+        SidePanel(showControls, onToggle = { showControls = !showControls }, onExit = onExit) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!running) {
+                    BigBtn(
+                        if (!isRoute && startStep > 0) "Avvia da ${startStep + 1}" else "Avvia",
+                        Modifier.weight(1f), enabled = connected, primary = true,
+                    ) { if (isRoute) vm.startRoute(w.id) else vm.startWorkout(w.id, startStep) }
+                } else {
+                    BigBtn(if (paused) "Riprendi" else "Pausa", Modifier.weight(1f), primary = true) {
+                        if (isRoute) vm.routePauseResume() else vm.runner.pauseResume()
+                    }
+                    BigBtn("Stop", Modifier.weight(1f)) { if (isRoute) vm.stopRoute() else vm.runner.stop() }
+                }
+            }
+            if (running && !isRoute) {
+                Text("Step ${p.stepIndex + 1}/${p.stepCount}", color = Color.White, fontSize = 14.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BigBtn("⏮ ${(p.stepIndex).coerceAtLeast(1)}", Modifier.weight(1f)) {
+                        vm.selectStep((p.stepIndex - 1).coerceAtLeast(0))
+                    }
+                    BigBtn("${(p.stepIndex + 2).coerceAtMost(p.stepCount)} ⏭", Modifier.weight(1f)) {
+                        vm.selectStep((p.stepIndex + 1).coerceAtMost(p.stepCount - 1))
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SmallOutlined(if (stepsPaused) "▶ Riprendi passi" else "⏸ Pausa passi") { vm.toggleStepsPause() }
-                    SmallOutlined("Azzera passi") { vm.resetSteps() }
+            }
+            if (running) {
+                val big = if (isRoute) 1.0 else 0.5
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BigBtn("Vel −${fmt(big)}", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(-big) else vm.adjustIntervalSpeed(-big) }
+                    BigBtn("Vel +${fmt(big)}", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(big) else vm.adjustIntervalSpeed(big) }
                 }
-                if (running && !isRoute) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Step ${p.stepIndex + 1}/${p.stepCount}", color = Color.White, fontSize = 12.sp)
-                        SmallOutlined("⏮ Precedente") { vm.selectStep((p.stepIndex - 1).coerceAtLeast(0)) }
-                        SmallOutlined("Successivo ⏭") { vm.selectStep((p.stepIndex + 1).coerceAtMost(p.stepCount - 1)) }
-                    }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BigBtn("Vel −0,1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(-0.1) else vm.adjustIntervalSpeed(-0.1) }
+                    BigBtn("Vel +0,1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustSpeed(0.1) else vm.adjustIntervalSpeed(0.1) }
                 }
-                if (running) {
-                    val big = if (isRoute) 1.0 else 0.5
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Velocità", color = Color.White, fontSize = 12.sp)
-                        SmallOutlined("−${fmt(big)}") { if (isRoute) vm.routeAdjustSpeed(-big) else vm.adjustIntervalSpeed(-big) }
-                        SmallOutlined("−0,1") { if (isRoute) vm.routeAdjustSpeed(-0.1) else vm.adjustIntervalSpeed(-0.1) }
-                        SmallOutlined("+0,1") { if (isRoute) vm.routeAdjustSpeed(0.1) else vm.adjustIntervalSpeed(0.1) }
-                        SmallOutlined("+${fmt(big)}") { if (isRoute) vm.routeAdjustSpeed(big) else vm.adjustIntervalSpeed(big) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Pendenza", color = Color.White, fontSize = 12.sp)
-                        SmallOutlined("−1 %") { if (isRoute) vm.routeAdjustIncline(-1.0) else vm.adjustIntervalIncline(-1.0) }
-                        SmallOutlined("+1 %") { if (isRoute) vm.routeAdjustIncline(1.0) else vm.adjustIntervalIncline(1.0) }
-                    }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BigBtn("Pend −1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustIncline(-1.0) else vm.adjustIntervalIncline(-1.0) }
+                    BigBtn("Pend +1", Modifier.weight(1f)) { if (isRoute) vm.routeAdjustIncline(1.0) else vm.adjustIntervalIncline(1.0) }
                 }
             }
         }

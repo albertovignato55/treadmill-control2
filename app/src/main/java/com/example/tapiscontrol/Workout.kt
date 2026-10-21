@@ -212,9 +212,6 @@ class WorkoutStore(ctx: Context) {
         prefs.edit().putString("blocklib", a.toString()).apply()
     }
 
-    fun loadStepCal(): StepCal = StepCal(prefs.getInt("steplen3", 50), prefs.getInt("steplen4", 64), prefs.getInt("steplen5", 76))
-    fun saveStepCal(c: StepCal) = prefs.edit().putInt("steplen3", c.cm3).putInt("steplen4", c.cm4).putInt("steplen5", c.cm5).apply()
-
     fun loadMaxSpeed(): Double = prefs.getFloat("max", 8f).toDouble()
     fun saveMaxSpeed(v: Double) = prefs.edit().putFloat("max", v.toFloat()).apply()
 
@@ -270,6 +267,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
 
     private var job: Job? = null
     @Volatile private var paused = false
+    @Volatile private var pausedExternally = false   // true = pausa rilevata dal nastro fermo (console/chiave), non dal pulsante
     @Volatile private var jumpTarget: Int? = null   // step (indice piatto) a cui saltare subito
 
     /** Salta subito allo step indicato (anche in pausa), senza attendere gli step intermedi. */
@@ -301,6 +299,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
     fun start(steps: List<Step>, maxSpeed: Double, maxIncline: Double, startIndex: Int = 0) {
         if (steps.isEmpty() || job?.isActive == true) return
         paused = false
+        pausedExternally = false
         jumpTarget = null
         speedOffset = 0.0
         inclineOffset = 0.0
@@ -311,6 +310,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
 
     fun pauseResume() {
         if (job?.isActive != true) return
+        pausedExternally = false
         paused = !paused
         progress.update { it.copy(paused = paused) }
         if (paused) ble.pause()
@@ -321,6 +321,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
         job?.cancel()
         job = null
         paused = false
+        pausedExternally = false
         if (wasRunning) ble.stop()
         progress.value = Progress(message = "Fermato")
     }
@@ -342,6 +343,7 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
         var sentInc: Double? = null
 
         var realElapsed = 0
+        var stoppedTicks = 0   // secondi consecutivi col nastro fermo mentre l'allenamento e' in corso
         var idx = startIndex
         var firstStep = true   // il primo step applicato parte subito, senza rampa
         while (idx < steps.size) {
@@ -366,10 +368,45 @@ class WorkoutRunner(private val ble: TreadmillBle, private val scope: CoroutineS
                     )
                     return
                 }
+                // Nastro fermato dalla console o dalla chiave di sicurezza: l'allenamento si mette in pausa da solo
+                if (!paused && sentSpeed != null) {
+                    val live = ble.live.value.speedKmh
+                    if (live != null && live < 0.3) stoppedTicks++ else stoppedTicks = 0
+                    if (stoppedTicks >= 3) {
+                        stoppedTicks = 0
+                        pausedExternally = true
+                        paused = true
+                        ble.clearWanted()
+                        progress.update { it.copy(paused = true) }
+                    }
+                } else {
+                    stoppedTicks = 0
+                }
                 if (paused) {
-                    while (paused) delay(250)
-                    ble.start()
-                    ble.awaitBeltMoving()
+                    var restartedByUser = false
+                    var movingTicks = 0
+                    while (paused) {
+                        delay(250)
+                        // Se dopo una pausa esterna il nastro riparte (tasto START della console, Start dell'app...)
+                        // l'allenamento riprende da solo, rimandando velocita' e pendenza dello step.
+                        if (pausedExternally) {
+                            val sp = ble.live.value.speedKmh
+                            if (sp != null && sp >= 0.5) movingTicks++ else movingTicks = 0
+                            if (movingTicks >= 8) {
+                                restartedByUser = true
+                                pausedExternally = false
+                                paused = false
+                                progress.update { it.copy(paused = false) }
+                            }
+                        }
+                    }
+                    if (!restartedByUser) {
+                        ble.start()
+                        ble.awaitBeltMoving()
+                    } else {
+                        ble.requestControl()
+                        delay(500)
+                    }
                     sentSpeed = null
                     sentInc = null
                     if (jumpTarget != null) continue   // salto richiesto durante la pausa

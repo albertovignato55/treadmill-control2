@@ -27,30 +27,7 @@ data class HudData(
     val nextInfo: String? = null,        // velocita' e pendenza dello step successivo
     val elapsedSec: Int? = null,
     val totalRemainingSec: Int? = null,
-    val steps: Int? = null,              // passi stimati
-    val stepsPaused: Boolean = false,
 )
-
-/**
- * Taratura del passo a tre velocita' (3, 4 e 5 km/h): la lunghezza del passo alle altre velocita' si ricava
- * per interpolazione (o estrapolazione, limitata tra 2 e 8 km/h).
- */
-data class StepCal(val cm3: Int = 50, val cm4: Int = 64, val cm5: Int = 76) {
-    /** Lunghezza del passo (m) alla velocita' data: spezzata tra i punti a 3, 4 e 5 km/h (estrapolata fuori, 2-8 km/h). */
-    fun strideM(speedKmh: Double): Double {
-        val v = speedKmh.coerceIn(2.0, 8.0)
-        val cm = if (v <= 4.0) cm3 + (cm4 - cm3) * (v - 3.0) else cm4 + (cm5 - cm4) * (v - 4.0)
-        return cm.coerceIn(35.0, 120.0) / 100.0
-    }
-}
-
-/** Distanza prevista (m) di un allenamento a intervalli: somma di velocita' x durata di ogni step. */
-fun Workout.plannedMeters(): Int =
-    flatSteps().sumOf { it.speedKmh * it.durationSec / 3.6 }.let { kotlin.math.round(it).toInt() }
-
-/** Passi previsti di un allenamento a intervalli, con la lunghezza del passo adatta a ogni velocita'. */
-fun Workout.plannedSteps(cal: StepCal): Int =
-    kotlin.math.round(flatSteps().sumOf { (it.speedKmh * it.durationSec / 3.6) / cal.strideM(it.speedKmh) }).toInt()
 
 /** Costruisce i dati del pannello dai valori live del tapis roulant e dall'avanzamento dell'allenamento. */
 internal fun buildHud(
@@ -59,8 +36,6 @@ internal fun buildHud(
     live: LiveData,
     isRoute: Boolean,
     steps: List<Step>,
-    walkedSteps: Int? = null,
-    stepsPaused: Boolean = false,
 ): HudData {
     val intervals = !isRoute && p.running && p.stepIndex >= 0
     val next = if (intervals) steps.getOrNull(p.stepIndex + 1) else null
@@ -75,8 +50,6 @@ internal fun buildHud(
         nextInfo = next?.let { "${fmt(it.speedKmh)} km/h · ${fmt(it.inclinePct)} %" },
         elapsedSec = if (intervals) p.elapsedSec else live.elapsedSec,
         totalRemainingSec = if (intervals) p.totalRemainingSec else null,
-        steps = walkedSteps,
-        stepsPaused = stepsPaused,
     )
 }
 
@@ -109,7 +82,6 @@ fun RunHud(d: HudData, modifier: Modifier = Modifier, scale: Float = 1f, showDis
             HudChip("pendenza ${d.inclinePct.toInt()} %", s * 1.1f)
             d.heartRate?.let { HudChip("♥ $it bpm", s * 1.1f, bold = true) }
             if (showDistance) d.distanceM?.let { HudChip("distanza ${"%.2f".format(it / 1000.0)} km", s) }
-            if (showDistance) d.steps?.let { HudChip("passi ≈ $it" + if (d.stepsPaused) " ⏸" else "", s) }
         }
         Column(
             Modifier.align(Alignment.BottomStart).padding(8.dp),
