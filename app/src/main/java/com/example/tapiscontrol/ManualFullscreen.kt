@@ -56,7 +56,7 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
     val connected by vm.ble.connected.collectAsStateWithLifecycle()
     val speedTarget by vm.manualSpeed.collectAsStateWithLifecycle()
     val inclineTarget by vm.manualIncline.collectAsStateWithLifecycle()
-    val stepLen by vm.stepLengthCm.collectAsStateWithLifecycle()
+    val stepsEst by vm.stepsEst.collectAsStateWithLifecycle()
     var showControls by rememberSaveable { mutableStateOf(true) }
     var ytError by remember(mv.source) { mutableStateOf<String?>(null) }
 
@@ -69,7 +69,7 @@ fun ManualFullscreen(vm: TapisViewModel, mv: VideoRef, onExit: () -> Unit) {
         distanceM = live.distanceM,
         heartRate = live.heartRate?.takeIf { it > 0 },
         elapsedSec = live.elapsedSec,
-        steps = stepsFromMeters(live.distanceM, stepLen),
+        steps = stepsEst,
     )
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {

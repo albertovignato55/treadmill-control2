@@ -166,14 +166,14 @@ fun ConnectionTab(vm: TapisViewModel, onScan: () -> Unit) {
 
 // ------------------------------------------------------------------ Manuale
 @Composable
-fun LiveCard(l: LiveData, stepLenCm: Int = 70) {
+fun LiveCard(l: LiveData, steps: Int? = null) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text("Dati dal tapis roulant", style = MaterialTheme.typography.titleSmall)
             Text("Velocità: ${l.speedKmh?.let { fmt(it) } ?: "–"} km/h")
             Text("Inclinazione: ${l.inclinePct?.let { fmt(it) } ?: "–"} %")
             Text("Distanza: ${l.distanceM ?: "–"} m")
-            Text("Passi (stima): ${stepsFromMeters(l.distanceM, stepLenCm) ?: "–"}")
+            Text("Passi (stima): ${steps ?: "–"}")
             Text("Frequenza cardiaca: ${l.heartRate ?: "–"} bpm")
             Text("Tempo: ${l.elapsedSec?.let { mmss(it) } ?: "–"}")
         }
@@ -188,7 +188,8 @@ fun ManualTab(vm: TapisViewModel) {
     val connected by vm.ble.connected.collectAsStateWithLifecycle()
     val maxSpeed by vm.maxSpeed.collectAsStateWithLifecycle()
     val maxIncline by vm.maxIncline.collectAsStateWithLifecycle()
-    val stepLen by vm.stepLengthCm.collectAsStateWithLifecycle()
+    val cal by vm.stepCal.collectAsStateWithLifecycle()
+    val stepsEst by vm.stepsEst.collectAsStateWithLifecycle()
     val mv by vm.manualVideo.collectAsStateWithLifecycle()
     val manualDismissed by vm.manualFsDismissed.collectAsStateWithLifecycle()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -260,7 +261,7 @@ fun ManualTab(vm: TapisViewModel) {
             }
         }
 
-        LiveCard(live, stepLen)
+        LiveCard(live, stepsEst)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { vm.manualStart() }, enabled = connected) { Text("Start") }
@@ -307,15 +308,22 @@ fun ManualTab(vm: TapisViewModel) {
             valueRange = 0f..15f,
         )
 
-        Text("Lunghezza del passo: $stepLen cm (per stimare i passi)", style = MaterialTheme.typography.titleSmall)
+        Text("Passo a 4 km/h: ${cal.cm4} cm", style = MaterialTheme.typography.titleSmall)
         Slider(
-            value = stepLen.toFloat(),
-            onValueChange = { vm.setStepLength(it.roundToInt()) },
+            value = cal.cm4.toFloat(),
+            onValueChange = { vm.setStepCal(it.roundToInt(), cal.cm5) },
             valueRange = 40f..110f,
         )
+        Text("Passo a 5 km/h: ${cal.cm5} cm", style = MaterialTheme.typography.titleSmall)
+        Slider(
+            value = cal.cm5.toFloat(),
+            onValueChange = { vm.setStepCal(cal.cm4, it.roundToInt()) },
+            valueRange = 40f..120f,
+        )
         Text(
-            "Il tapis non conta i passi: l'app li stima dalla distanza. Per tarare il valore, cammina e confronta il " +
-                "numero con un contapassi: lunghezza = distanza / passi reali.",
+            "Il tapis non conta i passi: l'app li stima dalla distanza, con la lunghezza del passo che cambia con la " +
+                "velocita' (interpolata tra questi due valori). Per tararli: a 4 e a 5 km/h conta i passi in 1 minuto " +
+                "(entrambi i piedi) e calcola metri al minuto / passi al minuto.",
             style = MaterialTheme.typography.bodySmall,
         )
     }

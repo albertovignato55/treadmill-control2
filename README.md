@@ -1,4 +1,4 @@
-# Tapis Control (v0.21)
+# Tapis Control (v0.23)
 
 App Android (Kotlin + Jetpack Compose) per comandare un tapis roulant FTMS via Bluetooth LE
 (testata sulla carta per Lotto Pace G600: espone il servizio Fitness Machine 0x1826).
@@ -212,3 +212,14 @@ La compilazione parte da sola nella scheda Actions.
 - Lunghezza del passo regolabile (40-110 cm, default 70) con uno slider nella scheda *Manuale*, sotto i limiti.
 - "Passi (stima)" compare nei dati dal tapis (Manuale e In corso) e nello schermo intero (In corso e Manuale).
 - Negli allenamenti a intervalli, l'elenco e i dettagli mostrano durata, km e passi previsti.
+
+## Novita' v0.22 - Passo che dipende dalla velocita'
+- Due tarature nella scheda *Manuale*: passo a 4 km/h (default 64 cm) e a 5 km/h (default 76 cm); le altre velocita'
+  si ricavano per interpolazione/estrapolazione (limitata tra 2 e 8 km/h).
+- I passi si accumulano metro per metro con la lunghezza del passo della velocita' del momento (si azzerano
+  quando il tapis azzera la distanza). Le stime dei passi previsti negli allenamenti usano lo stesso criterio.
+
+## Novita' v0.23 - Passi piu' fluidi
+- Il tapis invia la distanza a metri interi e a intervalli: il contatore dei passi saliva a scatti. Ora tra un dato e
+  l'altro avanza in base alla velocita' reale (al massimo 1 m) e si riallinea al valore esatto appena arriva,
+  senza mai tornare indietro.

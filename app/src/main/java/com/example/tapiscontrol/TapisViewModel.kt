@@ -23,7 +23,20 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     val editingId = MutableStateFlow<Long?>(null)   // allenamento aperto nell'editor
     val activeId = MutableStateFlow<Long?>(null)    // allenamento in corso / selezionato
     val maxSpeed = MutableStateFlow(store.loadMaxSpeed())
-    val stepLengthCm = MutableStateFlow(store.loadStepLen())   // lunghezza del passo per stimare i passi
+    val stepCal = MutableStateFlow(store.loadStepCal())   // taratura della lunghezza del passo (4 e 5 km/h)
+    val stepsEst = MutableStateFlow<Int?>(null)           // passi stimati dall'ultimo azzeramento del tapis
+    private var stepAcc = 0.0
+    private var stepLastDist: Int? = null
+    private var stepChangeAt = 0L
+    private var stepSpeed = 0.0
+
+    private fun publishSteps() {
+        if (stepLastDist == null) return
+        val stride = stepCal.value.strideM(if (stepSpeed > 0.0) stepSpeed else 4.0)
+        val dtS = (SystemClock.elapsedRealtime() - stepChangeAt) / 1000.0
+        val extraM = if (stepSpeed >= 0.5) minOf(stepSpeed / 3.6 * dtS, 1.0) else 0.0
+        stepsEst.value = (stepAcc + extraM / stride).roundToInt()
+    }
     val maxIncline = MutableStateFlow(store.loadMaxIncline())
 
     // video della scheda Manuale (indipendente dagli allenamenti)
@@ -46,6 +59,35 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         // limiti applicati a ogni comando direttamente nel modulo Bluetooth
         ble.speedLimit = maxSpeed.value
         ble.inclineLimit = maxIncline.value
+
+        // Passi stimati: ogni metro in piu' segnato dal tapis vale 1 / (lunghezza del passo alla velocita' di quel momento).
+        // Tra un dato e l'altro (la distanza e' a metri interi) il conteggio avanza in base alla velocita', al massimo
+        // di 1 m, e si riallinea al dato esatto appena arriva: cosi' sale in modo continuo e non torna mai indietro.
+        viewModelScope.launch {
+            ble.live.collect { l ->
+                val d = l.distanceM
+                stepSpeed = l.speedKmh ?: 0.0
+                if (d != null) {
+                    val stride = stepCal.value.strideM(if (stepSpeed > 0.0) stepSpeed else 4.0)
+                    val prev = stepLastDist
+                    if (prev == null || d < prev) {
+                        stepAcc = d / stride                       // primo dato o tapis azzerato
+                        stepChangeAt = SystemClock.elapsedRealtime()
+                    } else if (d > prev) {
+                        stepAcc += (d - prev) / stride
+                        stepChangeAt = SystemClock.elapsedRealtime()
+                    }
+                    stepLastDist = d
+                }
+                publishSteps()
+            }
+        }
+        viewModelScope.launch {
+            while (true) {
+                delay(200)
+                publishSteps()
+            }
+        }
 
         // Se si lascia la scheda "In corso" il lettore video viene chiuso: il video "scorre" comunque in modo
         // virtuale alla velocita' reale del tapis roulant, cosi' il profilo del percorso resta allineato e
@@ -390,10 +432,10 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         ble.setIncline(target)
     }
 
-    fun setStepLength(cm: Int) {
-        val c = cm.coerceIn(40, 110)
-        stepLengthCm.value = c
-        store.saveStepLen(c)
+    fun setStepCal(cm4: Int, cm5: Int) {
+        val c = StepCal(cm4.coerceIn(40, 110), cm5.coerceIn(40, 120))
+        stepCal.value = c
+        store.saveStepCal(c)
     }
 
     fun setMaxSpeed(v: Double) {
