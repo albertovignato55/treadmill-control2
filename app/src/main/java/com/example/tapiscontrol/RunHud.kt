@@ -27,7 +27,16 @@ data class HudData(
     val nextInfo: String? = null,        // velocita' e pendenza dello step successivo
     val elapsedSec: Int? = null,
     val totalRemainingSec: Int? = null,
+    val steps: Int? = null,              // passi stimati (distanza / lunghezza del passo)
 )
+
+/** Passi stimati dai metri percorsi; `cm` e' la lunghezza del passo impostata. */
+fun stepsFromMeters(meters: Int?, cm: Int): Int? =
+    meters?.let { kotlin.math.round(it * 100.0 / cm.coerceAtLeast(1)).toInt() }
+
+/** Distanza e passi previsti da un allenamento a intervalli (somma di velocita' x durata di ogni step). */
+fun Workout.plannedMeters(): Int =
+    flatSteps().sumOf { it.speedKmh * it.durationSec / 3.6 }.let { kotlin.math.round(it).toInt() }
 
 /** Costruisce i dati del pannello dai valori live del tapis roulant e dall'avanzamento dell'allenamento. */
 internal fun buildHud(
@@ -36,6 +45,7 @@ internal fun buildHud(
     live: LiveData,
     isRoute: Boolean,
     steps: List<Step>,
+    stepLenCm: Int = 70,
 ): HudData {
     val intervals = !isRoute && p.running && p.stepIndex >= 0
     val next = if (intervals) steps.getOrNull(p.stepIndex + 1) else null
@@ -50,6 +60,7 @@ internal fun buildHud(
         nextInfo = next?.let { "${fmt(it.speedKmh)} km/h · ${fmt(it.inclinePct)} %" },
         elapsedSec = if (intervals) p.elapsedSec else live.elapsedSec,
         totalRemainingSec = if (intervals) p.totalRemainingSec else null,
+        steps = stepsFromMeters(live.distanceM, stepLenCm),
     )
 }
 
@@ -82,6 +93,7 @@ fun RunHud(d: HudData, modifier: Modifier = Modifier, scale: Float = 1f, showDis
             HudChip("pendenza ${d.inclinePct.toInt()} %", s * 1.1f)
             d.heartRate?.let { HudChip("♥ $it bpm", s * 1.1f, bold = true) }
             if (showDistance) d.distanceM?.let { HudChip("distanza ${"%.2f".format(it / 1000.0)} km", s) }
+            if (showDistance) d.steps?.let { HudChip("passi ≈ $it", s) }
         }
         Column(
             Modifier.align(Alignment.BottomStart).padding(8.dp),

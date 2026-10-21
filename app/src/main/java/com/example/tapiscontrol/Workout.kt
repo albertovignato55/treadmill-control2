@@ -212,6 +212,9 @@ class WorkoutStore(ctx: Context) {
         prefs.edit().putString("blocklib", a.toString()).apply()
     }
 
+    fun loadStepLen(): Int = prefs.getInt("steplen", 70)
+    fun saveStepLen(cm: Int) = prefs.edit().putInt("steplen", cm).apply()
+
     fun loadMaxSpeed(): Double = prefs.getFloat("max", 8f).toDouble()
     fun saveMaxSpeed(v: Double) = prefs.edit().putFloat("max", v.toFloat()).apply()
 

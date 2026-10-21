@@ -64,6 +64,7 @@ fun WorkoutList(vm: TapisViewModel, workouts: List<Workout>, onGoRun: () -> Unit
     val ctx = LocalContext.current
     val inclineRange by vm.ble.inclineRange.collectAsStateWithLifecycle()
     val maxSpeed by vm.maxSpeed.collectAsStateWithLifecycle()
+    val stepLen by vm.stepLengthCm.collectAsStateWithLifecycle()
 
     LazyColumn(
         Modifier.fillMaxSize().padding(12.dp),
@@ -97,7 +98,8 @@ fun WorkoutList(vm: TapisViewModel, workouts: List<Workout>, onGoRun: () -> Unit
                         if (w.mode == WorkoutMode.ROUTE) {
                             "Percorso virtuale · ${w.route.size} punti profilo$video"
                         } else {
-                            "${w.totalSec() / 60} min · ${w.blocks.size} blocchi$video"
+                            "${w.totalSec() / 60} min · ${w.blocks.size} blocchi · " +
+                                "≈ ${stepsFromMeters(w.plannedMeters(), stepLen)} passi$video"
                         },
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -136,6 +138,7 @@ fun WorkoutEditor(vm: TapisViewModel, w: Workout, onGoRun: () -> Unit) {
     val connected by vm.ble.connected.collectAsStateWithLifecycle()
     val progress by vm.runner.progress.collectAsStateWithLifecycle()
     val library by vm.blockLibrary.collectAsStateWithLifecycle()
+    val stepLen by vm.stepLengthCm.collectAsStateWithLifecycle()
     var nameTxt by remember(w.id) { mutableStateOf(w.name) }
     var showLib by remember { mutableStateOf(false) }
 
@@ -174,7 +177,14 @@ fun WorkoutEditor(vm: TapisViewModel, w: Workout, onGoRun: () -> Unit) {
             }
         }
         if (w.mode == WorkoutMode.STEPS) {
-            item { Text("Durata totale: ${w.totalSec() / 60} min", style = MaterialTheme.typography.titleSmall) }
+            item {
+                val m = w.plannedMeters()
+                Text(
+                    "Durata totale: ${w.totalSec() / 60} min · ≈ ${"%.2f".format(m / 1000.0)} km · " +
+                        "≈ ${stepsFromMeters(m, stepLen)} passi",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            }
         }
         item { VideoSection(w, vm) }
         if (w.mode == WorkoutMode.STEPS) {
@@ -549,6 +559,7 @@ fun RunTab(vm: TapisViewModel) {
     val incOff by vm.runner.inclineOffsetFlow.collectAsStateWithLifecycle()
     val startStep by vm.startStep.collectAsStateWithLifecycle()
     val fsDismissed by vm.fsDismissed.collectAsStateWithLifecycle()
+    val stepLen by vm.stepLengthCm.collectAsStateWithLifecycle()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val ctx = LocalContext.current
     val w = workouts.firstOrNull { it.id == activeId }
@@ -571,7 +582,7 @@ fun RunTab(vm: TapisViewModel) {
             val playing = running && !paused && speed >= 0.5
             val ref = w.video.refSpeedKmh
             val rate = if (speed >= 0.5) ((speed / ref) * 20).roundToInt() / 20f else 1f
-            val hud = buildHud(w, p, live, isRoute, remember(w) { w.flatSteps() })
+            val hud = buildHud(w, p, live, isRoute, remember(w) { w.flatSteps() }, stepLen)
 
             if (w.video.type == VideoType.ANIMATION) {
                 AnimatedRoute(
@@ -632,7 +643,7 @@ fun RunTab(vm: TapisViewModel) {
                 }
             }
 
-            LiveCard(live)
+            LiveCard(live, stepLen)
 
             if (isRoute) {
                 RouteControls(vm, w, connected)

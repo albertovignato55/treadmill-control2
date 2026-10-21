@@ -58,6 +58,7 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
     val routePaused by vm.routePaused.collectAsStateWithLifecycle()
     val routeMsg by vm.routeMessage.collectAsStateWithLifecycle()
     val startStep by vm.startStep.collectAsStateWithLifecycle()
+    val stepLen by vm.stepLengthCm.collectAsStateWithLifecycle()
     var showControls by rememberSaveable { mutableStateOf(true) }
     var ytError by remember(w.id) { mutableStateOf<String?>(null) }
 
@@ -69,7 +70,7 @@ fun RunFullscreen(vm: TapisViewModel, w: Workout, onExit: () -> Unit) {
     val ref = w.video.refSpeedKmh
     val rate = if (speed >= 0.5) ((speed / ref) * 20).roundToInt() / 20f else 1f
     val steps = remember(w) { w.flatSteps() }
-    val hud = buildHud(w, p, live, isRoute, steps)
+    val hud = buildHud(w, p, live, isRoute, steps, stepLen)
     val message = if (isRoute) routeMsg else p.message
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {

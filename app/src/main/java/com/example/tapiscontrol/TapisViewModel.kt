@@ -23,6 +23,7 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     val editingId = MutableStateFlow<Long?>(null)   // allenamento aperto nell'editor
     val activeId = MutableStateFlow<Long?>(null)    // allenamento in corso / selezionato
     val maxSpeed = MutableStateFlow(store.loadMaxSpeed())
+    val stepLengthCm = MutableStateFlow(store.loadStepLen())   // lunghezza del passo per stimare i passi
     val maxIncline = MutableStateFlow(store.loadMaxIncline())
 
     // video della scheda Manuale (indipendente dagli allenamenti)
@@ -387,6 +388,12 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         lastInclineSentMs = now
         routeIncline.value = target
         ble.setIncline(target)
+    }
+
+    fun setStepLength(cm: Int) {
+        val c = cm.coerceIn(40, 110)
+        stepLengthCm.value = c
+        store.saveStepLen(c)
     }
 
     fun setMaxSpeed(v: Double) {
