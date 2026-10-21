@@ -25,17 +25,50 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
     val maxSpeed = MutableStateFlow(store.loadMaxSpeed())
     val stepCal = MutableStateFlow(store.loadStepCal())   // taratura della lunghezza del passo (4 e 5 km/h)
     val stepsEst = MutableStateFlow<Int?>(null)           // passi stimati dall'ultimo azzeramento del tapis
-    private var stepAcc = 0.0
+    private var stepDist = 0.0          // distanza stimata integrando la velocita' (m)
+    private var stepAcc = 0.0           // passi accumulati (frazionari)
+    private var stepShown = 0           // ultimo valore pubblicato (non scende mai, salvo azzeramento)
     private var stepLastDist: Int? = null
-    private var stepChangeAt = 0L
+    private var stepLastTick = 0L
     private var stepSpeed = 0.0
 
-    private fun publishSteps() {
+    /** Fa avanzare i passi in base alla velocita' e al tempo trascorso dall'ultimo aggiornamento. */
+    private fun tickSteps() {
+        val now = SystemClock.elapsedRealtime()
+        val dt = ((now - stepLastTick) / 1000.0).coerceIn(0.0, 1.0)
+        stepLastTick = now
         if (stepLastDist == null) return
+        if (stepSpeed >= 0.5) {
+            val dd = stepSpeed / 3.6 * dt
+            stepDist += dd
+            stepAcc += dd / stepCal.value.strideM(stepSpeed)
+        }
+        val v = stepAcc.roundToInt()
+        if (v > stepShown) stepShown = v
+        stepsEst.value = stepShown
+    }
+
+    /** Un nuovo dato di distanza dal tapis (metri interi): corregge la stima senza scatti. */
+    private fun syncSteps(d: Int) {
         val stride = stepCal.value.strideM(if (stepSpeed > 0.0) stepSpeed else 4.0)
-        val dtS = (SystemClock.elapsedRealtime() - stepChangeAt) / 1000.0
-        val extraM = if (stepSpeed >= 0.5) minOf(stepSpeed / 3.6 * dtS, 1.0) else 0.0
-        stepsEst.value = (stepAcc + extraM / stride).roundToInt()
+        val prev = stepLastDist
+        stepLastDist = d
+        if (prev == null || d < prev) {                  // primo dato o tapis azzerato
+            stepDist = d.toDouble()
+            stepAcc = d / stride
+            stepShown = stepAcc.roundToInt()
+            stepsEst.value = stepShown
+            return
+        }
+        if (d == prev) return
+        val err = (d + 0.5) - stepDist                   // la distanza e' troncata al metro
+        if (kotlin.math.abs(err) > 6.0) {                // stima troppo lontana: riallineo
+            stepDist = d + 0.5
+            stepAcc += err / stride
+        } else {                                         // correzione dolce
+            stepDist += err * 0.25
+            stepAcc += err * 0.25 / stride
+        }
     }
     val maxIncline = MutableStateFlow(store.loadMaxIncline())
 
@@ -60,32 +93,19 @@ class TapisViewModel(app: Application) : AndroidViewModel(app) {
         ble.speedLimit = maxSpeed.value
         ble.inclineLimit = maxIncline.value
 
-        // Passi stimati: ogni metro in piu' segnato dal tapis vale 1 / (lunghezza del passo alla velocita' di quel momento).
-        // Tra un dato e l'altro (la distanza e' a metri interi) il conteggio avanza in base alla velocita', al massimo
-        // di 1 m, e si riallinea al dato esatto appena arriva: cosi' sale in modo continuo e non torna mai indietro.
+        // Passi stimati: la velocita' fa avanzare il conteggio di continuo (ogni 0,2 s); i dati di distanza del tapis
+        // (metri interi, a intervalli) lo correggono piano piano. La lunghezza del passo dipende dalla velocita'.
         viewModelScope.launch {
             ble.live.collect { l ->
-                val d = l.distanceM
+                tickSteps()
                 stepSpeed = l.speedKmh ?: 0.0
-                if (d != null) {
-                    val stride = stepCal.value.strideM(if (stepSpeed > 0.0) stepSpeed else 4.0)
-                    val prev = stepLastDist
-                    if (prev == null || d < prev) {
-                        stepAcc = d / stride                       // primo dato o tapis azzerato
-                        stepChangeAt = SystemClock.elapsedRealtime()
-                    } else if (d > prev) {
-                        stepAcc += (d - prev) / stride
-                        stepChangeAt = SystemClock.elapsedRealtime()
-                    }
-                    stepLastDist = d
-                }
-                publishSteps()
+                l.distanceM?.let { syncSteps(it) }
             }
         }
         viewModelScope.launch {
             while (true) {
                 delay(200)
-                publishSteps()
+                tickSteps()
             }
         }
 
