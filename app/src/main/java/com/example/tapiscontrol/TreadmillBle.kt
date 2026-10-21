@@ -160,9 +160,10 @@ class TreadmillBle(private val context: Context) {
             enqueue { writeCp(byteArrayOf(Ftms.OP_REQUEST_CONTROL.toByte())) }
 
             // diagnostica: ascolto (in sola lettura) anche le notifiche degli altri servizi del tapis
-            g.services.filter { it.uuid != Ftms.SERVICE && !shortUuid(it.uuid).let { u -> u == "1800" || u == "1801" } }
+            g.services.filter { !shortUuid(it.uuid).let { u -> u == "1800" || u == "1801" } }
                 .forEach { sv ->
                     sv.characteristics.forEach { ch ->
+                        if (ch.uuid == Ftms.TREADMILL_DATA || ch.uuid == Ftms.CONTROL_POINT) return@forEach
                         val notify = (ch.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0
                         val indicate = (ch.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
                         if (notify || indicate) enqueue { enableCccd(ch, indicate = !notify) }
